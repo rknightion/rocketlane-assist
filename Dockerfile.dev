@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1
+
+# Development Dockerfile with hot-reload support
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+
+# Install development tools and ensure bash is available
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    bash \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy dependency files first for better caching
+COPY backend/pyproject.toml backend/uv.lock ./backend/
+
+# Install dependencies with caching
+RUN --mount=type=cache,target=/root/.cache/uv \
+    cd backend && uv sync --frozen --no-install-project
+
+# Set environment variables
+ENV PATH="/workspace/backend/.venv/bin:$PATH"
+ENV PYTHONPATH="/workspace/backend"
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Create workspace structure
+RUN mkdir -p /workspace/frontend && chown -R appuser:appuser /workspace
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 8000
+
+# Development command with auto-reload - watch the backend directory
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/workspace/backend"]
