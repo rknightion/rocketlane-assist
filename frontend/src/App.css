@@ -1,0 +1,370 @@
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  background-color: #1a1a1a;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid #333;
+}
+
+.app-header h1 {
+  margin: 0 0 1rem 0;
+  font-size: 1.8rem;
+  color: #fff;
+}
+
+.app-header nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.app-header nav a {
+  color: #888;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.app-header nav a:hover {
+  color: #fff;
+  background-color: #333;
+}
+
+.warning-banner {
+  background-color: #ff6b6b;
+  color: white;
+  padding: 1rem 2rem;
+  text-align: center;
+}
+
+.warning-banner a {
+  color: white;
+  text-decoration: underline;
+}
+
+.app-main {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Loading and Error States */
+.loading, .error {
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.1rem;
+}
+
+.error {
+  color: #ff6b6b;
+}
+
+/* Project List */
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.project-card {
+  background-color: #2a2a2a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s;
+}
+
+.project-card:hover {
+  border-color: #555;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.project-card h3 {
+  margin: 0 0 0.5rem 0;
+  color: #fff;
+}
+
+.project-card p {
+  margin: 0 0 1rem 0;
+  color: #999;
+  font-size: 0.9rem;
+}
+
+.status {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.status-active {
+  background-color: #4caf50;
+  color: white;
+}
+
+.status-completed {
+  background-color: #2196f3;
+  color: white;
+}
+
+/* Project Detail */
+.back-button {
+  background: none;
+  border: 1px solid #333;
+  color: #999;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 1.5rem;
+  transition: all 0.2s;
+}
+
+.back-button:hover {
+  color: #fff;
+  border-color: #555;
+}
+
+.project-description {
+  color: #999;
+  margin-bottom: 2rem;
+}
+
+.tasks-section {
+  margin-top: 2rem;
+}
+
+.summarize-button {
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  margin: 1rem 0;
+  transition: all 0.2s;
+}
+
+.summarize-button:hover:not(:disabled) {
+  background-color: #1976d2;
+}
+
+.summarize-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.summary-section {
+  background-color: #2a2a2a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+}
+
+.summary-content {
+  color: #ccc;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.tasks-list {
+  margin-top: 1.5rem;
+}
+
+.task-item {
+  background-color: #2a2a2a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.task-item h4 {
+  margin: 0 0 0.5rem 0;
+  color: #fff;
+}
+
+.task-item p {
+  margin: 0 0 1rem 0;
+  color: #999;
+}
+
+.task-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+/* Settings */
+.settings-form {
+  max-width: 600px;
+}
+
+.form-section {
+  background-color: #2a2a2a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-section h3 {
+  margin: 0 0 1.5rem 0;
+  color: #fff;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #ccc;
+  font-weight: 500;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 0.75rem;
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 1rem;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #2196f3;
+}
+
+.configured {
+  color: #4caf50;
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
+}
+
+.save-button {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 0.75rem 2rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.save-button:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+.save-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.message {
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+}
+
+.message-success {
+  background-color: #4caf50;
+  color: white;
+}
+
+.message-error {
+  background-color: #ff6b6b;
+  color: white;
+}
+
+/* Light mode adjustments */
+@media (prefers-color-scheme: light) {
+  .app-header {
+    background-color: #f5f5f5;
+    border-bottom-color: #ddd;
+  }
+
+  .app-header h1 {
+    color: #333;
+  }
+
+  .app-header nav a {
+    color: #666;
+  }
+
+  .app-header nav a:hover {
+    color: #333;
+    background-color: #e0e0e0;
+  }
+
+  .project-card,
+  .task-item,
+  .summary-section,
+  .form-section {
+    background-color: #f9f9f9;
+    border-color: #ddd;
+  }
+
+  .project-card:hover {
+    border-color: #bbb;
+  }
+
+  .project-card h3,
+  .task-item h4,
+  .form-section h3 {
+    color: #333;
+  }
+
+  .project-card p,
+  .task-item p {
+    color: #666;
+  }
+
+  .form-group label {
+    color: #555;
+  }
+
+  .form-group input,
+  .form-group select {
+    background-color: #fff;
+    border-color: #ddd;
+    color: #333;
+  }
+
+  .back-button {
+    border-color: #ddd;
+    color: #666;
+  }
+
+  .back-button:hover {
+    color: #333;
+    border-color: #bbb;
+  }
+
+  .summary-content {
+    color: #555;
+  }
+}
