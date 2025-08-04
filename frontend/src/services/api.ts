@@ -56,6 +56,15 @@ export interface Config {
   has_openai_key: boolean;
   has_anthropic_key: boolean;
   has_rocketlane_key: boolean;
+  rocketlane_user_id?: string;
+}
+
+export interface User {
+  userId: string;
+  emailId: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
 }
 
 export const projectsApi = {
@@ -87,8 +96,22 @@ export const configApi = {
     return response.data;
   },
 
-  updateConfig: async (config: Partial<Config>): Promise<any> => {
+  updateConfig: async (config: {
+    llm_provider?: 'openai' | 'anthropic';
+    llm_model?: string;
+    openai_api_key?: string;
+    anthropic_api_key?: string;
+    rocketlane_api_key?: string;
+    rocketlane_user_id?: string;
+  }): Promise<any> => {
     const response = await api.put('/config/', config);
+    return response.data;
+  },
+};
+
+export const usersApi = {
+  getUsers: async (): Promise<User[]> => {
+    const response = await api.get<User[]>('/users/');
     return response.data;
   },
 };

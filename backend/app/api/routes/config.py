@@ -1,8 +1,10 @@
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Literal
-import os
+
 from ...core.config import settings
+from ...core.config_manager import get_config_manager
 
 router = APIRouter(prefix="/config", tags=["configuration"])
 
@@ -10,60 +12,62 @@ router = APIRouter(prefix="/config", tags=["configuration"])
 class ConfigUpdate(BaseModel):
     llm_provider: Literal["openai", "anthropic"]
     llm_model: str
-    openai_api_key: str = None
-    anthropic_api_key: str = None
-    rocketlane_api_key: str = None
+    openai_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    rocketlane_api_key: str | None = None
+    rocketlane_user_id: str | None = None
 
 
 @router.get("/")
 async def get_config():
     """Get current configuration (excluding sensitive data)"""
+    config = get_config_manager().get_config()
     return {
-        "llm_provider": settings.llm_provider,
-        "llm_model": settings.llm_model,
-        "has_openai_key": bool(settings.openai_api_key),
-        "has_anthropic_key": bool(settings.anthropic_api_key),
-        "has_rocketlane_key": bool(settings.rocketlane_api_key),
+        "llm_provider": config.llm_provider,
+        "llm_model": config.llm_model,
+        "has_openai_key": bool(config.openai_api_key),
+        "has_anthropic_key": bool(config.anthropic_api_key),
+        "has_rocketlane_key": bool(config.rocketlane_api_key),
+        "rocketlane_user_id": config.rocketlane_user_id,
     }
 
 
 @router.put("/")
 async def update_config(config: ConfigUpdate):
-    """Update configuration and restart if needed"""
+    """Update configuration dynamically without restart"""
     try:
-        # Update .env file
-        env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
+        # Build update dict with only non-None values
+        updates = {}
         
-        # Read existing .env
-        env_vars = {}
-        if os.path.exists(env_path):
-            with open(env_path, "r") as f:
-                for line in f:
-                    if "=" in line and not line.strip().startswith("#"):
-                        key, value = line.strip().split("=", 1)
-                        env_vars[key] = value
+        # Always update these fields
+        updates["llm_provider"] = config.llm_provider
+        updates["llm_model"] = config.llm_model
         
-        # Update values
-        env_vars["LLM_PROVIDER"] = config.llm_provider
-        env_vars["LLM_MODEL"] = config.llm_model
-        
-        if config.openai_api_key:
-            env_vars["OPENAI_API_KEY"] = config.openai_api_key
-        if config.anthropic_api_key:
-            env_vars["ANTHROPIC_API_KEY"] = config.anthropic_api_key
-        if config.rocketlane_api_key:
-            env_vars["ROCKETLANE_API_KEY"] = config.rocketlane_api_key
-        
-        # Write back to .env
-        with open(env_path, "w") as f:
-            for key, value in env_vars.items():
-                f.write(f"{key}={value}\n")
-        
-        # Note: In production, you'd want to trigger a graceful restart here
-        # For now, we'll return a message indicating restart is needed
+        # Update optional fields only if provided
+        if config.openai_api_key is not None:
+            updates["openai_api_key"] = config.openai_api_key
+        if config.anthropic_api_key is not None:
+            updates["anthropic_api_key"] = config.anthropic_api_key
+        if config.rocketlane_api_key is not None:
+            updates["rocketlane_api_key"] = config.rocketlane_api_key
+        if config.rocketlane_user_id is not None:
+            updates["rocketlane_user_id"] = config.rocketlane_user_id
+
+        # Update configuration
+        config_manager = get_config_manager()
+        updated_config = config_manager.update_config(updates)
+
         return {
             "status": "success",
-            "message": "Configuration updated. Please restart the application for changes to take effect."
+            "message": "Configuration updated successfully. Changes are effective immediately.",
+            "config": {
+                "llm_provider": updated_config.llm_provider,
+                "llm_model": updated_config.llm_model,
+                "has_openai_key": bool(updated_config.openai_api_key),
+                "has_anthropic_key": bool(updated_config.anthropic_api_key),
+                "has_rocketlane_key": bool(updated_config.rocketlane_api_key),
+                "rocketlane_user_id": updated_config.rocketlane_user_id,
+            }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

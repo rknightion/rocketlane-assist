@@ -1,57 +1,64 @@
-from typing import List, Dict, Any, Optional
-from anthropic import AsyncAnthropic
+from typing import Any, cast
+
+from anthropic import NOT_GIVEN, AsyncAnthropic
+from anthropic.types import MessageParam
+
 from .base import BaseLLMProvider
 
 
 class AnthropicProvider(BaseLLMProvider):
     """Anthropic Claude LLM provider implementation"""
-    
+
     def __init__(self, api_key: str, model: str = "claude-3-opus-20240229"):
         super().__init__(api_key, model)
         self.client = AsyncAnthropic(api_key=api_key)
-    
+
     async def generate_completion(
-        self, 
-        prompt: str, 
-        system_prompt: Optional[str] = None,
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
         temperature: float = 0.7,
-        max_tokens: Optional[int] = None
+        max_tokens: int | None = None,
     ) -> str:
-        messages = [{"role": "user", "content": prompt}]
-        
+        messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
+        typed_messages = cast(list[MessageParam], messages)
+
         response = await self.client.messages.create(
             model=self.model,
-            messages=messages,
-            system=system_prompt if system_prompt else None,
+            messages=typed_messages,
+            system=system_prompt if system_prompt else NOT_GIVEN,
             temperature=temperature,
-            max_tokens=max_tokens if max_tokens else 1024
+            max_tokens=max_tokens if max_tokens else 1024,
         )
-        return response.content[0].text
-    
+        # Extract text from the response content
+        content = response.content[0]
+        return getattr(content, "text", "") if hasattr(content, "text") else str(content)
+
     async def generate_chat_completion(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, Any]],
         temperature: float = 0.7,
-        max_tokens: Optional[int] = None
+        max_tokens: int | None = None,
     ) -> str:
         # Convert messages format if needed
-        anthropic_messages = []
-        system_message = None
-        
+        anthropic_messages: list[dict[str, Any]] = []
+        system_message: str | None = None
+
         for msg in messages:
             if msg["role"] == "system":
                 system_message = msg["content"]
             else:
-                anthropic_messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
-        
+                anthropic_messages.append({"role": msg["role"], "content": msg["content"]})
+
+        typed_messages = cast(list[MessageParam], anthropic_messages)
+
         response = await self.client.messages.create(
             model=self.model,
-            messages=anthropic_messages,
-            system=system_message,
+            messages=typed_messages,
+            system=system_message if system_message else NOT_GIVEN,
             temperature=temperature,
-            max_tokens=max_tokens if max_tokens else 1024
+            max_tokens=max_tokens if max_tokens else 1024,
         )
-        return response.content[0].text
+        # Extract text from the response content
+        content = response.content[0]
+        return getattr(content, "text", "") if hasattr(content, "text") else str(content)

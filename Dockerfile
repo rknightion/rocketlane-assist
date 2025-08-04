@@ -42,6 +42,9 @@ WORKDIR /app
 COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
 COPY --from=builder --chown=appuser:appuser /app/backend /app/backend
 
+# Copy entrypoint script
+COPY --chmod=755 backend/entrypoint.sh /app/entrypoint.sh
+
 # Set environment variables
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/backend"
@@ -57,6 +60,9 @@ EXPOSE 8000
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
+
+# Set entrypoint for permissions handling
+ENTRYPOINT ["/app/entrypoint.sh"]
 
 # Run the application
 CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

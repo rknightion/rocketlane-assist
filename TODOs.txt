@@ -19,8 +19,8 @@
 ### Core Enhancements
 - [ ] Add authentication and user management
 - [ ] Implement role-based access control (RBAC)
-- [ ] Add data persistence layer (PostgreSQL/SQLite)
-- [ ] Implement caching for API responses (Redis)
+- [ ] Add data persistence layer (SQLite)
+- [ ] Implement caching for API responses
 - [ ] Add comprehensive error handling and retry logic
 - [ ] Create unit and integration tests
 - [ ] Add logging and monitoring (OpenTelemetry)
@@ -102,8 +102,6 @@
 - [ ] Mobile-responsive design improvements
 - [ ] Offline mode with sync capabilities
 - [ ] Voice command support
-- [ ] Accessibility compliance (WCAG 2.1)
-- [ ] Multi-language support
 - [ ] Dark/light theme persistence
 
 ### Developer Experience

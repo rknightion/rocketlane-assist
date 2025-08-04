@@ -1,0 +1,50 @@
+# Pre-commit hooks for code quality
+# Install with: pip install pre-commit && pre-commit install
+
+repos:
+  # Python hooks
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.0
+    hooks:
+      - id: mypy
+        files: ^backend/
+        args: [--config-file=backend/pyproject.toml]
+        additional_dependencies:
+          - types-requests
+          - pydantic
+
+  # Frontend hooks
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.16.0
+    hooks:
+      - id: eslint
+        files: ^frontend/.*\.[jt]sx?$
+        types: [file]
+        additional_dependencies:
+          - eslint@^8.57.0
+          - eslint-plugin-react@^7.33.2
+          - eslint-plugin-react-hooks@^4.6.0
+          - '@typescript-eslint/eslint-plugin@^6.20.0'
+          - '@typescript-eslint/parser@^6.20.0'
+
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+        exclude: tsconfig.*\.json$
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key

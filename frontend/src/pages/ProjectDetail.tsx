@@ -27,8 +27,13 @@ function ProjectDetail() {
       ]);
       setProject(projectData);
       setTasks(tasksData);
-    } catch (err) {
-      setError('Failed to load project details.');
+    } catch (err: any) {
+      // Check if it's a user ID configuration error
+      if (err.response?.status === 403 && err.response?.data?.detail?.includes('User ID not configured')) {
+        setError('Please select your user account in Settings to view project details.');
+      } else {
+        setError('Failed to load project details.');
+      }
       console.error('Error loading project:', err);
     } finally {
       setLoading(false);
@@ -40,8 +45,13 @@ function ProjectDetail() {
       setSummarizing(true);
       const summaryData = await projectsApi.summarizeProjectTasks(projectId!);
       setSummary(summaryData);
-    } catch (err) {
-      setError('Failed to generate summary.');
+    } catch (err: any) {
+      // Check if it's a user ID configuration error
+      if (err.response?.status === 403 && err.response?.data?.detail?.includes('User ID not configured')) {
+        setError('Please select your user account in Settings to generate summaries.');
+      } else {
+        setError('Failed to generate summary.');
+      }
       console.error('Error summarizing tasks:', err);
     } finally {
       setSummarizing(false);
@@ -63,9 +73,9 @@ function ProjectDetail() {
 
       <div className="tasks-section">
         <h3>Outstanding Tasks ({tasks.length})</h3>
-        
-        <button 
-          onClick={handleSummarize} 
+
+        <button
+          onClick={handleSummarize}
           disabled={summarizing || tasks.length === 0}
           className="summarize-button"
         >
@@ -93,7 +103,7 @@ function ProjectDetail() {
                   {task.dueDate && <span>Due: {task.dueDate}</span>}
                   {task.assignees?.members && task.assignees.members.length > 0 && (
                     <span>
-                      Assigned to: {task.assignees.members.map(m => 
+                      Assigned to: {task.assignees.members.map(m =>
                         `${m.firstName || ''} ${m.lastName || ''}`.trim() || m.emailId
                       ).join(', ')}
                     </span>

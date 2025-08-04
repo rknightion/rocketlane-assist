@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { configApi, Config } from '../services/api';
+import { configApi, Config, usersApi, User } from '../services/api';
 
 interface SettingsProps {
   onConfigUpdate: () => void;
@@ -7,12 +7,17 @@ interface SettingsProps {
 
 function Settings({ onConfigUpdate }: SettingsProps) {
   const [config, setConfig] = useState<Config | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [formData, setFormData] = useState({
     llm_provider: 'openai' as 'openai' | 'anthropic',
     llm_model: '',
+    custom_model: '',
+    use_custom_model: false,
     openai_api_key: '',
     anthropic_api_key: '',
     rocketlane_api_key: '',
+    rocketlane_user_id: '',
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -21,17 +26,48 @@ function Settings({ onConfigUpdate }: SettingsProps) {
     loadConfig();
   }, []);
 
+  useEffect(() => {
+    // Load users when Rocketlane API key is configured
+    if (config?.has_rocketlane_key) {
+      loadUsers();
+    }
+  }, [config?.has_rocketlane_key]);
+
   const loadConfig = async () => {
     try {
       const currentConfig = await configApi.getConfig();
       setConfig(currentConfig);
+
+      // Check if the current model is in our predefined list
+      const modelOptions = currentConfig.llm_provider === 'openai'
+        ? ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini']
+        : ['claude-opus-4-0', 'claude-sonnet-4-0', 'claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest'];
+
+      const isCustomModel = !modelOptions.includes(currentConfig.llm_model);
+
       setFormData(prev => ({
         ...prev,
         llm_provider: currentConfig.llm_provider,
-        llm_model: currentConfig.llm_model,
+        llm_model: isCustomModel ? '' : currentConfig.llm_model,
+        custom_model: isCustomModel ? currentConfig.llm_model : '',
+        use_custom_model: isCustomModel,
+        rocketlane_user_id: currentConfig.rocketlane_user_id || '',
       }));
     } catch (error) {
       console.error('Failed to load config:', error);
+    }
+  };
+
+  const loadUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      const userList = await usersApi.getUsers();
+      setUsers(userList);
+    } catch (error) {
+      console.error('Failed to load users:', error);
+      setUsers([]);
+    } finally {
+      setLoadingUsers(false);
     }
   };
 
@@ -40,21 +76,24 @@ function Settings({ onConfigUpdate }: SettingsProps) {
     try {
       setSaving(true);
       setMessage(null);
-      
+
       const updateData: any = {
         llm_provider: formData.llm_provider,
-        llm_model: formData.llm_model,
+        llm_model: formData.use_custom_model ? formData.custom_model : formData.llm_model,
       };
 
       // Only include API keys if they were changed
       if (formData.openai_api_key) updateData.openai_api_key = formData.openai_api_key;
       if (formData.anthropic_api_key) updateData.anthropic_api_key = formData.anthropic_api_key;
       if (formData.rocketlane_api_key) updateData.rocketlane_api_key = formData.rocketlane_api_key;
+      if (formData.rocketlane_user_id !== config?.rocketlane_user_id) {
+        updateData.rocketlane_user_id = formData.rocketlane_user_id;
+      }
 
       await configApi.updateConfig(updateData);
       setMessage({ type: 'success', text: 'Configuration updated successfully. Please restart the application.' });
       onConfigUpdate();
-      
+
       // Clear sensitive fields
       setFormData(prev => ({
         ...prev,
@@ -72,9 +111,21 @@ function Settings({ onConfigUpdate }: SettingsProps) {
 
   const getModelOptions = () => {
     if (formData.llm_provider === 'openai') {
-      return ['gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo'];
+      return [
+        { value: 'gpt-4.1', label: 'GPT-4.1' },
+        { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+        { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
+        { value: 'gpt-4o', label: 'GPT-4o' },
+        { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+      ];
     } else {
-      return ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'];
+      return [
+        { value: 'claude-opus-4-0', label: 'Claude Opus 4' },
+        { value: 'claude-sonnet-4-0', label: 'Claude Sonnet 4' },
+        { value: 'claude-3-7-sonnet-latest', label: 'Claude Sonnet 3.7' },
+        { value: 'claude-3-5-sonnet-latest', label: 'Claude Sonnet 3.5' },
+        { value: 'claude-3-5-haiku-latest', label: 'Claude Haiku 3.5' },
+      ];
     }
   };
 
@@ -91,7 +142,7 @@ function Settings({ onConfigUpdate }: SettingsProps) {
       <form onSubmit={handleSubmit} className="settings-form">
         <div className="form-section">
           <h3>LLM Configuration</h3>
-          
+
           <div className="form-group">
             <label htmlFor="llm_provider">LLM Provider</label>
             <select
@@ -108,19 +159,40 @@ function Settings({ onConfigUpdate }: SettingsProps) {
             <label htmlFor="llm_model">Model</label>
             <select
               id="llm_model"
-              value={formData.llm_model}
-              onChange={(e) => setFormData({ ...formData, llm_model: e.target.value })}
+              value={formData.use_custom_model ? 'custom' : formData.llm_model}
+              onChange={(e) => {
+                if (e.target.value === 'custom') {
+                  setFormData({ ...formData, use_custom_model: true });
+                } else {
+                  setFormData({ ...formData, llm_model: e.target.value, use_custom_model: false });
+                }
+              }}
             >
+              <option value="">Select a model</option>
               {getModelOptions().map(model => (
-                <option key={model} value={model}>{model}</option>
+                <option key={model.value} value={model.value}>{model.label}</option>
               ))}
+              <option value="custom">Custom Model</option>
             </select>
           </div>
+
+          {formData.use_custom_model && (
+            <div className="form-group">
+              <label htmlFor="custom_model">Custom Model ID</label>
+              <input
+                type="text"
+                id="custom_model"
+                value={formData.custom_model}
+                onChange={(e) => setFormData({ ...formData, custom_model: e.target.value })}
+                placeholder="Enter custom model ID"
+              />
+            </div>
+          )}
         </div>
 
         <div className="form-section">
           <h3>API Keys</h3>
-          
+
           <div className="form-group">
             <label htmlFor="openai_api_key">
               OpenAI API Key {config?.has_openai_key && <span className="configured">✓ Configured</span>}
@@ -159,6 +231,31 @@ function Settings({ onConfigUpdate }: SettingsProps) {
               placeholder={config?.has_rocketlane_key ? 'Enter new key to update' : 'Enter your Rocketlane API key'}
             />
           </div>
+
+          {config?.has_rocketlane_key && (
+            <div className="form-group">
+              <label htmlFor="rocketlane_user_id">
+                Rocketlane User Filter
+                {loadingUsers && <span className="loading-text"> (Loading users...)</span>}
+              </label>
+              <select
+                id="rocketlane_user_id"
+                value={formData.rocketlane_user_id}
+                onChange={(e) => setFormData({ ...formData, rocketlane_user_id: e.target.value })}
+                disabled={loadingUsers}
+              >
+                <option value="">All tasks (no filter)</option>
+                {users.map(user => (
+                  <option key={user.userId} value={user.userId}>
+                    {user.fullName || `${user.firstName} ${user.lastName}`.trim() || user.emailId}
+                  </option>
+                ))}
+              </select>
+              <small className="help-text">
+                Select a user to filter tasks. Leave empty to see all tasks.
+              </small>
+            </div>
+          )}
         </div>
 
         <button type="submit" disabled={saving} className="save-button">

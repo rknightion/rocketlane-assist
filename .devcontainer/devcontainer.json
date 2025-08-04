@@ -19,24 +19,20 @@
   "customizations": {
     "vscode": {
       "extensions": [
-        // Python extensions
         "ms-python.python",
         "ms-python.vscode-pylance",
         "charliermarsh.ruff",
         "astral-sh.uv",
-        // JavaScript/TypeScript extensions
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
         "bradlc.vscode-tailwindcss",
         "dsznajder.es7-react-js-snippets",
-        // General development
         "ms-azuretools.vscode-docker",
         "eamodio.gitlens",
         "usernamehw.errorlens",
         "streetsidesoftware.code-spell-checker"
       ],
       "settings": {
-        // Python settings
         "python.defaultInterpreterPath": "/workspace/backend/.venv/bin/python",
         "python.linting.enabled": true,
         "python.linting.pylintEnabled": false,
@@ -49,7 +45,6 @@
             "source.organizeImports": true
           }
         },
-        // JavaScript/TypeScript settings
         "[javascript]": {
           "editor.defaultFormatter": "esbenp.prettier-vscode",
           "editor.formatOnSave": true
@@ -66,7 +61,6 @@
           "editor.defaultFormatter": "esbenp.prettier-vscode",
           "editor.formatOnSave": true
         },
-        // General settings
         "editor.formatOnSave": true,
         "files.watcherExclude": {
           "**/.git/objects/**": true,
@@ -88,10 +82,9 @@
     }
   },
   "mounts": [
-    // Mount the entire project so we can access both backend and frontend
     "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
   ],
-  "postCreateCommand": "cd /workspace && echo '🚀 Setting up development environment...' && cd backend && uv sync && echo '✅ Backend ready!' && echo '📦 Frontend runs on host - use npm install && npm run dev' && echo '✨ DevContainer ready! Backend: http://localhost:8000, Frontend: http://localhost:3000'",
+  "postCreateCommand": "cd /workspace && echo '🚀 Setting up development environment...' && cd backend && uv sync --no-install-project && echo '✅ Backend ready!' && echo '📦 Frontend runs on host - use npm install && npm run dev' && echo '✨ DevContainer ready! Backend: http://localhost:8000, Frontend: http://localhost:3000'",
   "forwardPorts": [8000, 3000],
   "portsAttributes": {
     "8000": {
@@ -101,7 +94,7 @@
     },
     "3000": {
       "label": "Frontend",
-      "onAutoForward": "notify", 
+      "onAutoForward": "notify",
       "protocol": "http"
     }
   },

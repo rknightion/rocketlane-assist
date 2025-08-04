@@ -23,7 +23,7 @@ case "$1" in
         echo "Frontend will be available at: http://localhost:3000"
         echo "API documentation at: http://localhost:8000/docs"
         echo ""
-        
+
         # Start backend
         cd backend
         echo "Installing backend dependencies..."
@@ -31,7 +31,7 @@ case "$1" in
         echo "Starting backend server..."
         uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &
         BACKEND_PID=$!
-        
+
         # Start frontend
         cd ../frontend
         echo "Installing frontend dependencies..."
@@ -39,11 +39,11 @@ case "$1" in
         echo "Starting frontend server..."
         npm run dev &
         FRONTEND_PID=$!
-        
+
         # Wait for both processes
         wait $BACKEND_PID $FRONTEND_PID
         ;;
-        
+
     "docker")
         echo "Starting with Docker Compose (production mode)..."
         docker compose up -d
@@ -53,34 +53,34 @@ case "$1" in
         echo "Backend API: http://localhost:8000"
         echo "API Docs: http://localhost:8000/docs"
         ;;
-        
+
     "docker-dev")
         echo "Starting with Docker Compose (development mode with hot-reload)..."
         docker compose -f docker-compose.dev.yml up
         ;;
-        
+
     "docker-build")
         echo "Building Docker images..."
         docker compose build
         ;;
-        
+
     "docker-build-dev")
         echo "Building development Docker images..."
         docker compose -f docker-compose.dev.yml build
         ;;
-        
+
     "docker-stop")
         echo "Stopping Docker services..."
         docker compose down
         docker compose -f docker-compose.dev.yml down
         ;;
-        
+
     "test")
         echo "Running tests..."
         cd backend
         uv run pytest
         ;;
-        
+
     *)
         echo "Usage: ./run.sh [command]"
         echo ""

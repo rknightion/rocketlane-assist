@@ -1,135 +1,303 @@
-# Claude Code Context for Rocketlane Assist
+# Rocketlane Assist - AI-Powered Project Management Assistant
 
 ## Project Overview
 
-Rocketlane Assist is an AI-powered tool that integrates Rocketlane (a professional service engagement planning and tracking tool) with large language models to help consultants and project managers work more efficiently.
+Rocketlane Assist is an AI-powered tool that integrates with Rocketlane (a professional service engagement planning and tracking platform) to help consultants and project managers work more efficiently through AI-driven task summarization and project insights.
 
-## Architecture
+**Important Note:** Rocketlane API keys are global rather than user-scoped. The application requires users to specify which user account they want to filter by during onboarding and configuration. All API queries will filter tasks and projects based on the selected user ID.
 
-### Backend (FastAPI + Python)
-- **Location**: `/backend`
-- **Framework**: FastAPI with async support
-- **Package Manager**: `uv` for Python dependency management
-- **Key Components**:
-  - LLM Provider abstraction supporting OpenAI and Anthropic
-  - Rocketlane API client for fetching projects and tasks
-  - Prompt template system for maintainable AI interactions
-  - Configuration management via environment variables
+**User ID Enforcement:** The application enforces user selection through:
+- Backend middleware that blocks all API calls (except /users and /config) without a configured user ID
+- Frontend warnings and error messages when user is not selected
+- Automatic filtering of tasks to show only those assigned to the selected user
+- Clear error messages (HTTP 403) when operations are attempted without user context
 
-### Frontend (React + TypeScript)
-- **Location**: `/frontend`
-- **Framework**: React with TypeScript, built with Vite
-- **Key Features**:
-  - Project listing and detail views
-  - Task summarization interface
-  - Settings management for API configuration
-  - Responsive design with light/dark mode support
+**Key Features:**
+- Task summarization using OpenAI or Anthropic APIs
+- Multi-LLM provider support with easy switching
+- Web-based interface for project management
+- User-specific task filtering (tasks assigned to selected user)
+- Configurable settings through UI
+- Docker-based deployment
 
-## Key Files and Directories
+## Quick Start Commands
 
-### Backend Structure
-```
-backend/
-├── app/
-│   ├── api/          # API routes and endpoints
-│   ├── core/         # Core functionality (config, LLM providers)
-│   ├── services/     # Business logic (Rocketlane client, summarization)
-│   └── prompts/      # AI prompt templates
-├── .env              # Configuration file (API keys, settings)
-└── pyproject.toml    # Python project configuration
-```
+**IMPORTANT: Run these from the project root directory**
 
-### Frontend Structure
-```
-frontend/
-├── src/
-│   ├── components/   # Reusable React components
-│   ├── pages/        # Page components (ProjectList, Settings, etc.)
-│   ├── services/     # API client and service layer
-│   └── App.tsx       # Main application component
-└── package.json      # Node.js project configuration
-```
-
-## Development Commands
-
-### Backend
 ```bash
+# Full application startup
+./quickstart.sh                           # Guided setup script
+docker compose up -d                      # Run entire stack
+docker compose down                       # Stop all services
+
+# Development workflow
+cd backend && uv sync && uv run uvicorn app.main:app --reload  # Backend dev
+cd frontend && npm install && npm run dev                      # Frontend dev
+
+# Health checks
+curl http://localhost:8000/health         # Backend health
+curl http://localhost:3000               # Frontend access
+curl http://localhost:8000/docs          # API documentation
+```
+
+## Architecture Overview
+
+### Technology Stack
+- **Backend**: FastAPI (Python) with async support
+- **Frontend**: React + TypeScript with Vite
+- **Package Management**: `uv` (Python), `npm` (Node.js)
+- **Deployment**: Docker + docker-compose
+- **LLM Integration**: OpenAI and Anthropic APIs
+- **External API**: Rocketlane project management platform
+
+### Directory Structure
+```
+rocketlane-assist/
+├── backend/                  # Python FastAPI application
+│   ├── app/                 # Application source code
+│   │   ├── api/            # REST API routes and endpoints
+│   │   ├── core/           # Core functionality (config, LLM providers)
+│   │   ├── services/       # Business logic and external integrations
+│   │   └── prompts/        # AI prompt templates
+│   ├── .env.example        # Environment configuration template
+│   └── pyproject.toml      # Python dependencies and tooling
+├── frontend/               # React TypeScript application
+│   ├── src/
+│   │   ├── components/     # Reusable UI components
+│   │   ├── pages/         # Route-level page components
+│   │   ├── services/      # API client and HTTP layer
+│   │   ├── hooks/         # Custom React hooks
+│   │   └── stores/        # Global state management (Zustand)
+│   └── package.json       # Node.js dependencies and scripts
+├── docker-compose.yml      # Container orchestration
+└── TODOs.txt              # Future feature roadmap
+```
+
+## Configuration Management
+
+**Environment Setup (Required):**
+
+1. Copy environment template: `cp backend/.env.example backend/.env`
+2. Configure API keys in `backend/.env`:
+
+```bash
+# LLM Provider (choose one or both)
+LLM_PROVIDER=openai                    # or "anthropic"
+OPENAI_API_KEY=your_openai_key_here
+ANTHROPIC_API_KEY=your_anthropic_key_here
+
+# Rocketlane Integration (always required)
+ROCKETLANE_API_KEY=your_rocketlane_key_here
+ROCKETLANE_USER_ID=                   # User ID to filter tasks (leave empty for all tasks)
+
+# Optional settings
+LLM_MODEL=gpt-4                       # or claude-3-opus-20240229
+API_HOST=0.0.0.0
+API_PORT=8000
+```
+
+**Configuration Access:**
+- UI Settings: http://localhost:3000/settings
+- API Config: `GET /api/v1/config/`
+- Environment variables override UI settings
+
+## Development Workflow
+
+### Code Style Guidelines
+
+**Backend (Python):**
+- Use **double quotes** for strings
+- **100 character line limit**
+- **Type hints** for all functions
+- **async/await** for I/O operations
+- **Pydantic models** for data validation
+- Run: `uv run ruff check . --fix && uv run ruff format .`
+
+**Frontend (TypeScript):**
+- Use **ES modules** (import/export)
+- **Destructure imports** when possible
+- **Functional components** with hooks
+- **TypeScript** for all new code
+- **2-space indentation**
+- Run: `npm run lint`
+
+### Testing and Quality
+
+```bash
+# Backend testing
 cd backend
-uv sync                           # Install dependencies
-uv run uvicorn app.main:app --reload  # Run development server
-```
+uv run pytest                        # Run tests
+uv run mypy .                        # Type checking
+uv run ruff check .                  # Linting
 
-### Frontend
-```bash
+# Frontend testing
 cd frontend
-npm install                       # Install dependencies
-npm run dev                       # Run development server
-npm run build                     # Build for production
+npm run lint                         # ESLint checking
+npm run build                       # Production build test
 ```
 
-### Docker
+## API Reference
+
+**Base URLs:**
+- Backend API: http://localhost:8000
+- Frontend UI: http://localhost:3000
+- API Docs: http://localhost:8000/docs
+
+**Key Endpoints:**
 ```bash
-docker compose up -d              # Run entire stack
-docker compose down               # Stop all services
-docker compose logs -f backend    # View backend logs
+# Project Management
+GET    /api/v1/projects/                    # List all projects
+GET    /api/v1/projects/{project_id}        # Get project details
+GET    /api/v1/projects/{project_id}/tasks  # Get project tasks
+POST   /api/v1/projects/{project_id}/summarize  # Generate AI summary
+
+# Configuration
+GET    /api/v1/config/                      # Get current settings
+PUT    /api/v1/config/                      # Update settings
+
+# Health & Status
+GET    /health                              # Backend health check
+GET    /                                    # API root information
 ```
 
-## Configuration
+## Adding New Features
 
-The application uses environment variables for configuration. Key settings:
+### Backend API Endpoint
+1. **Create route**: `backend/app/api/routes/new_feature.py`
+2. **Add business logic**: `backend/app/services/new_feature_service.py`
+3. **Update router**: Include in `backend/app/api/__init__.py`
+4. **Add Pydantic models** for request/response validation
 
-- `LLM_PROVIDER`: Choose between "openai" or "anthropic"
-- `LLM_MODEL`: Model to use (e.g., "gpt-4", "claude-3-opus-20240229")
-- `OPENAI_API_KEY`: OpenAI API key (required if using OpenAI)
-- `ANTHROPIC_API_KEY`: Anthropic API key (required if using Anthropic)
-- `ROCKETLANE_API_KEY`: Rocketlane API key (always required)
+### Frontend Component
+1. **Create component**: `frontend/src/components/NewFeature.tsx`
+2. **Add API functions**: `frontend/src/services/api.ts`
+3. **Update routing**: Add route in `frontend/src/App.tsx`
+4. **Add navigation** if needed
 
-## Testing
+### LLM Provider Integration
+1. **Create provider class**: `backend/app/core/llm/new_provider.py`
+2. **Inherit from** `BaseLLMProvider`
+3. **Update factory**: `backend/app/core/llm/provider.py`
+4. **Add configuration**: `backend/app/core/config.py`
 
-When testing features:
-1. Ensure all API keys are configured in `.env`
-2. Check that the Rocketlane API key has proper permissions
-3. Verify the selected LLM provider and model are available
+## Troubleshooting
 
-## Common Tasks
+### Common Issues
 
-### Adding a New LLM Provider
-1. Create a new provider class in `backend/app/core/llm/`
-2. Implement the `BaseLLMProvider` interface
-3. Update the provider factory in `provider.py`
-4. Add configuration options to `config.py`
+**Backend Won't Start:**
+- Check `.env` file exists in `backend/` directory
+- Verify API keys are valid and properly formatted
+- Run `uv sync` to ensure dependencies are installed
+- Check port 8000 isn't already in use
 
-### Adding a New Feature
-1. Create API endpoint in `backend/app/api/routes/`
-2. Implement business logic in `backend/app/services/`
-3. Add prompt templates if needed in `backend/app/prompts/templates/`
-4. Create frontend components and update API client
-5. Update the UI to expose the new functionality
+**Frontend Can't Connect to Backend:**
+- Verify backend is running on port 8000
+- Check CORS settings in `backend/app/core/config.py`
+- Confirm `VITE_API_URL` environment variable (if set)
 
-### Updating Prompts
-Prompts are stored separately from code in `backend/app/prompts/templates/`. Each feature has its own prompt file for easy maintenance and updates.
+**LLM API Errors:**
+- Verify API keys are active and have sufficient credits
+- Check model names are correct (case-sensitive)
+- Ensure rate limits aren't exceeded
 
-## Deployment Considerations
+**Docker Issues:**
+- Run `docker compose down && docker compose up -d` to restart
+- Check logs: `docker compose logs -f backend` or `docker compose logs -f frontend`
+- Verify `.env` file is in backend directory
 
-- The application is designed to run in Docker containers
-- Frontend is served by nginx with API proxy configuration
-- Backend runs with uvicorn in production mode
-- All sensitive configuration is handled through environment variables
-- Health check endpoints are available at `/health` (backend) and `/` (frontend)
+### Debugging Commands
 
-## Future Extensions
+```bash
+# Check configuration
+curl http://localhost:8000/api/v1/config/
 
-The architecture supports adding:
-- Additional LLM providers (e.g., Cohere, Hugging Face)
-- New Rocketlane integrations (timesheet management, calendar sync)
-- Enhanced prompt engineering capabilities
-- Multi-tenant support with user authentication
-- Caching layer for improved performance
+# Test Rocketlane connectivity
+curl http://localhost:8000/api/v1/projects/
 
-## Debugging Tips
+# View application logs
+docker compose logs -f backend
+docker compose logs -f frontend
 
-1. Check backend logs for API errors: `docker compose logs backend`
-2. Verify API keys are properly set: `GET /api/v1/config/`
-3. Test Rocketlane connectivity: `GET /api/v1/projects/`
-4. Frontend console for client-side errors
-5. Use FastAPI's automatic docs at `/docs` for API testing
+# Backend development with debug logging
+cd backend && uv run uvicorn app.main:app --reload --log-level debug
+```
+
+## Deployment
+
+### Production Deployment
+```bash
+# Build and run production containers
+docker compose -f docker-compose.yml up -d
+
+# Health verification
+curl http://your-domain/health
+curl http://your-domain/api/v1/config/
+```
+
+### Environment-Specific Configurations
+- **Development**: Use `docker-compose.dev.yml` for hot reload
+- **Production**: Use `docker-compose.yml` for optimized builds
+- **Security**: Ensure `.env` files are never committed to git
+
+## Project Roadmap
+
+**Current Status:** MVP with core functionality complete
+**Next Priorities:** (See `TODOs.txt` for full roadmap)
+- Authentication and user management
+- Enhanced AI features (risk assessment, timeline generation)
+- Google Calendar integration
+- Mobile responsiveness improvements
+
+## Security Notes
+
+**IMPORTANT Security Practices:**
+- **Never commit** `.env` files or API keys to version control
+- **Use `.env.example`** as template for environment setup
+- **Rotate API keys** regularly
+- **Limit API key permissions** to minimum required scope
+- **Monitor API usage** to detect unusual activity
+
+## Rocketlane API Integration
+
+**API Documentation References:**
+- **Quick Start Guide**: Use Context7 MCP with project ID `developer_rocketlane` for basic API information
+- **Detailed Reference**: Use Context7 MCP with project ID `developer_rocketlane-v1.3` for comprehensive API documentation
+
+**Key API Endpoints Used:**
+- `GET /users` - Fetch all users for user selection dropdown
+- `GET /projects` - List all projects
+- `GET /projects/{project_id}` - Get project details
+- `GET /tasks` - Get tasks with filtering support:
+  - Filter by project: `filters=project.eq={project_id}`
+  - Filter by status: `filters=status.eq={status_value}`
+  - Filter by assignee: `filters=assignees.cn={user_id}`
+  - Multiple filters: Combine with commas
+
+**User Filtering Implementation:**
+The application filters tasks based on the selected user ID:
+1. User selects their account during onboarding or in settings
+2. User ID is stored in configuration (`ROCKETLANE_USER_ID`)
+3. All task queries include `assignees.cn={user_id}` filter
+4. Time entry operations automatically use the configured user ID
+5. Future features (timesheet generation, calendar sync) will use this user context
+
+**Operations That Require User Context:**
+- Viewing/summarizing tasks (filtered by assignee)
+- Creating time entries (uses configured user ID)
+- Future: Timesheet generation (for the selected user)
+- Future: Calendar synchronization (user's calendar events)
+- Future: Task recommendations (based on user's workload)
+
+## Contributing
+
+**Before Making Changes:**
+1. Read the appropriate directory's `CLAUDE.md` file for specific guidelines
+2. Follow established code style and patterns
+3. Update tests when adding new functionality
+4. Run linting and type checking before committing
+5. Test both backend and frontend integration
+
+**Documentation:**
+- Update relevant `CLAUDE.md` files when changing patterns
+- Add API documentation for new endpoints
+- Update `TODOs.txt` when completing or adding features
