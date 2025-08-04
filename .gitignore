@@ -225,3 +225,5 @@ config/settings.json
 # OS files
 .DS_Store
 Thumbs.db
+
+config/project_cache.json

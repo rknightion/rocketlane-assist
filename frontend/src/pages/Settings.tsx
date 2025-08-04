@@ -91,9 +91,8 @@ function Settings({ onConfigUpdate }: SettingsProps) {
       }
 
       await configApi.updateConfig(updateData);
-      setMessage({ type: 'success', text: 'Configuration updated successfully. Please restart the application.' });
-      onConfigUpdate();
-
+      setMessage({ type: 'success', text: 'Configuration updated successfully.' });
+      
       // Clear sensitive fields
       setFormData(prev => ({
         ...prev,
@@ -101,8 +100,19 @@ function Settings({ onConfigUpdate }: SettingsProps) {
         anthropic_api_key: '',
         rocketlane_api_key: '',
       }));
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to update configuration.' });
+
+      // Reload config to get updated state and trigger user loading
+      await loadConfig();
+      onConfigUpdate();
+    } catch (error: any) {
+      // Check if it's an API key validation error
+      if (error.response?.data?.detail?.includes('Invalid Rocketlane API key')) {
+        setMessage({ type: 'error', text: error.response.data.detail });
+        // Reload config to clear invalid key from UI
+        await loadConfig();
+      } else {
+        setMessage({ type: 'error', text: 'Failed to update configuration.' });
+      }
       console.error('Error updating config:', error);
     } finally {
       setSaving(false);
@@ -244,7 +254,7 @@ function Settings({ onConfigUpdate }: SettingsProps) {
                 onChange={(e) => setFormData({ ...formData, rocketlane_user_id: e.target.value })}
                 disabled={loadingUsers}
               >
-                <option value="">All tasks (no filter)</option>
+                <option value="">⚠️ Select a user (required)</option>
                 {users.map(user => (
                   <option key={user.userId} value={user.userId}>
                     {user.fullName || `${user.firstName} ${user.lastName}`.trim() || user.emailId}
@@ -252,7 +262,7 @@ function Settings({ onConfigUpdate }: SettingsProps) {
                 ))}
               </select>
               <small className="help-text">
-                Select a user to filter tasks. Leave empty to see all tasks.
+                <strong>Required:</strong> You must select a user. All operations will be blocked until a user is selected.
               </small>
             </div>
           )}

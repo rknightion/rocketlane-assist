@@ -18,19 +18,47 @@ class RocketlaneClient:
         }
 
     async def get_projects(self, limit: int = 100) -> list[dict[str, Any]]:
-        """Get list of all projects"""
-        # Note: Projects cannot be filtered by user in Rocketlane API
-        # We'll get all projects and the frontend should filter based on user's tasks
+        """Get all projects with pagination support"""
+        all_projects = []
+        page_token = None
+        
         async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.base_url}/projects", headers=self.headers, params={"pageSize": limit}
-            )
-            response.raise_for_status()
-            data = response.json()
-            # Handle both possible response structures
-            if isinstance(data, list):
-                return data
-            return data.get("projects", [])
+            while True:
+                params = {"pageSize": limit}
+                if page_token:
+                    params["pageToken"] = page_token
+                
+                response = await client.get(
+                    f"{self.base_url}/projects", 
+                    headers=self.headers,
+                    params=params
+                )
+                response.raise_for_status()
+                data = response.json()
+                
+                # Handle different response structures
+                if isinstance(data, list):
+                    all_projects.extend(data)
+                    break  # No pagination
+                elif "data" in data:
+                    all_projects.extend(data["data"])
+                    
+                    # Check for pagination
+                    pagination = data.get("pagination", {})
+                    if not pagination.get("hasMore", False):
+                        break
+                    page_token = pagination.get("nextPageToken")
+                    
+                    # Safety check
+                    if not page_token:
+                        break
+                elif "projects" in data:
+                    all_projects.extend(data["projects"])
+                    break  # Assume no pagination
+                else:
+                    break
+                    
+        return all_projects
 
     async def get_project(self, project_id: str) -> dict[str, Any]:
         """Get details of a specific project"""
@@ -80,10 +108,14 @@ class RocketlaneClient:
             )
             response.raise_for_status()
             data = response.json()
-            # Handle both possible response structures
+            # Handle different response structures
             if isinstance(data, list):
                 return data
-            return data.get("tasks", [])
+            elif "data" in data:
+                return data["data"]
+            elif "tasks" in data:
+                return data["tasks"]
+            return []
 
     async def get_task(self, task_id: str) -> dict[str, Any]:
         """Get details of a specific task"""
@@ -160,7 +192,11 @@ class RocketlaneClient:
             )
             response.raise_for_status()
             data = response.json()
-            # Handle both possible response structures
+            # Handle different response structures
             if isinstance(data, list):
                 return data
-            return data.get("timeEntries", [])
+            elif "data" in data:
+                return data["data"]
+            elif "timeEntries" in data:
+                return data["timeEntries"]
+            return []

@@ -22,7 +22,7 @@ class AppConfig(BaseModel):
     # Rocketlane Configuration
     rocketlane_api_key: str = ""
     rocketlane_user_id: str = ""
-    rocketlane_api_base_url: str = "https://api.rocketlane.com/api/v1.0"
+    rocketlane_api_base_url: str = "https://api.rocketlane.com/api/1.0"
 
     # Application Settings
     api_host: str = "0.0.0.0"
@@ -72,7 +72,7 @@ class ConfigManager:
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             rocketlane_api_key=os.getenv("ROCKETLANE_API_KEY", ""),
             rocketlane_user_id=os.getenv("ROCKETLANE_USER_ID", ""),
-            rocketlane_api_base_url=os.getenv("ROCKETLANE_API_BASE_URL", "https://api.rocketlane.com/api/v1.0"),
+            rocketlane_api_base_url=os.getenv("ROCKETLANE_API_BASE_URL", "https://api.rocketlane.com/api/1.0"),
             api_host=os.getenv("API_HOST", "0.0.0.0"),
             api_port=int(os.getenv("API_PORT", "8000")),
         )

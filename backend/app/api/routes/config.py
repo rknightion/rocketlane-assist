@@ -1,5 +1,6 @@
 from typing import Literal
 
+import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -53,6 +54,27 @@ async def update_config(config: ConfigUpdate):
         if config.rocketlane_user_id is not None:
             updates["rocketlane_user_id"] = config.rocketlane_user_id
 
+        # Test Rocketlane API key if provided
+        if config.rocketlane_api_key:
+            from ...services.rocketlane import RocketlaneClient
+            try:
+                # Try to fetch projects to validate the API key
+                client = RocketlaneClient(api_key=config.rocketlane_api_key)
+                async with httpx.AsyncClient() as http_client:
+                    response = await http_client.get(
+                        f"{client.base_url}/projects",
+                        headers=client.headers,
+                        params={"pageSize": 1},
+                    )
+                    response.raise_for_status()
+            except Exception as e:
+                # If API key is invalid, clear it
+                updates["rocketlane_api_key"] = ""
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid Rocketlane API key: {str(e)}"
+                )
+
         # Update configuration
         config_manager = get_config_manager()
         updated_config = config_manager.update_config(updates)
@@ -69,5 +91,7 @@ async def update_config(config: ConfigUpdate):
                 "rocketlane_user_id": updated_config.rocketlane_user_id,
             }
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

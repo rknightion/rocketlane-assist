@@ -8,10 +8,10 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - CONFIG_PATH=/config/settings.json
+      - CONFIG_PATH=/app/config/settings.json
     volumes:
       - ./backend/app:/app/backend/app
-      - ./config:/config
+      - ./config:/app/config
     restart: unless-stopped
     networks:
       - rocketlane-network
