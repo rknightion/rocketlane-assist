@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { projectsApi, Project, Task, TaskSummary } from '../services/api';
+import { trackEvent, measurePerformance } from '../lib/observability';
 
 function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -19,6 +20,7 @@ function ProjectDetail() {
   }, [projectId]);
 
   const loadProjectData = async () => {
+    const startTime = Date.now();
     try {
       setLoading(true);
       const [projectData, tasksData] = await Promise.all([
@@ -27,6 +29,18 @@ function ProjectDetail() {
       ]);
       setProject(projectData);
       setTasks(tasksData);
+      
+      // Track successful project load
+      trackEvent('project_loaded', {
+        projectId: projectId!,
+        taskCount: tasksData.length,
+        projectName: projectData.name
+      });
+      
+      // Measure performance
+      measurePerformance('project_load_time', Date.now() - startTime, {
+        projectId: projectId!
+      });
     } catch (err: any) {
       // Check if it's a user ID configuration error
       if (err.response?.status === 403 && err.response?.data?.detail?.includes('User ID not configured')) {
@@ -35,16 +49,45 @@ function ProjectDetail() {
         setError('Failed to load project details.');
       }
       console.error('Error loading project:', err);
+      
+      // Track error
+      trackEvent('project_load_error', {
+        projectId: projectId!,
+        error: err.message,
+        statusCode: err.response?.status
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleSummarize = async () => {
+    const startTime = Date.now();
     try {
       setSummarizing(true);
+      
+      // Track summarization attempt
+      trackEvent('summarization_started', {
+        projectId: projectId!,
+        projectName: project?.name,
+        taskCount: tasks.length
+      });
+      
       const summaryData = await projectsApi.summarizeProjectTasks(projectId!);
       setSummary(summaryData);
+      
+      // Track successful summarization
+      trackEvent('summarization_completed', {
+        projectId: projectId!,
+        projectName: project?.name,
+        summaryLength: summaryData.summary.length
+      });
+      
+      // Measure performance
+      measurePerformance('summarization_time', Date.now() - startTime, {
+        projectId: projectId!,
+        taskCount: tasks.length
+      });
     } catch (err: any) {
       // Check if it's a user ID configuration error
       if (err.response?.status === 403 && err.response?.data?.detail?.includes('User ID not configured')) {
@@ -53,6 +96,13 @@ function ProjectDetail() {
         setError('Failed to generate summary.');
       }
       console.error('Error summarizing tasks:', err);
+      
+      // Track error
+      trackEvent('summarization_error', {
+        projectId: projectId!,
+        error: err.message,
+        statusCode: err.response?.status
+      });
     } finally {
       setSummarizing(false);
     }

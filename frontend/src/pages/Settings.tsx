@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { configApi, Config, usersApi, User } from '../services/api';
+import { setUser, clearUser } from '../lib/observability';
 
 interface SettingsProps {
   onConfigUpdate: () => void;
@@ -32,6 +33,16 @@ function Settings({ onConfigUpdate }: SettingsProps) {
       loadUsers();
     }
   }, [config?.has_rocketlane_key]);
+
+  useEffect(() => {
+    // Set user tracking when users are loaded and we have a selected user
+    if (config?.rocketlane_user_id && users.length > 0) {
+      const selectedUser = users.find(u => u.userId === config.rocketlane_user_id);
+      if (selectedUser) {
+        setUser(selectedUser.userId, selectedUser.emailId, selectedUser.fullName || selectedUser.firstName);
+      }
+    }
+  }, [config?.rocketlane_user_id, users]);
 
   const loadConfig = async () => {
     try {
@@ -100,6 +111,18 @@ function Settings({ onConfigUpdate }: SettingsProps) {
         anthropic_api_key: '',
         rocketlane_api_key: '',
       }));
+
+      // Update Faro user tracking if user was changed
+      if (updateData.rocketlane_user_id !== undefined) {
+        if (updateData.rocketlane_user_id) {
+          const selectedUser = users.find(u => u.userId === updateData.rocketlane_user_id);
+          if (selectedUser) {
+            setUser(selectedUser.userId, selectedUser.emailId, selectedUser.fullName || selectedUser.firstName);
+          }
+        } else {
+          clearUser();
+        }
+      }
 
       // Reload config to get updated state and trigger user loading
       await loadConfig();
