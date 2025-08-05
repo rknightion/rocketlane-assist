@@ -2,7 +2,6 @@
 Dynamic configuration system that uses JSON file storage.
 Maintains backward compatibility with existing code.
 """
-from typing import Literal
 
 from .config_manager import get_settings as get_dynamic_settings
 
@@ -13,15 +12,15 @@ class Settings:
     def __getattribute__(self, name):
         # Get the actual settings from config manager
         config = get_dynamic_settings()
-        
+
         # Handle special methods
         if name in ["active_llm_api_key", "model_config_dict"]:
             return object.__getattribute__(self, name)
-        
+
         # Return attribute from dynamic config
         if hasattr(config, name):
             return getattr(config, name)
-        
+
         return object.__getattribute__(self, name)
 
     @property

@@ -2,10 +2,11 @@
 Configuration manager for persistent JSON-based configuration.
 This allows dynamic configuration updates without requiring app restarts.
 """
+
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -34,12 +35,12 @@ class AppConfig(BaseModel):
 class ConfigManager:
     """Manages application configuration with file persistence"""
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: str | None = None):
         # Default to /config/settings.json in container, or local config/settings.json
         self.config_path = Path(config_path or os.getenv("CONFIG_PATH", "/config/settings.json"))
-        self._config: Optional[AppConfig] = None
+        self._config: AppConfig | None = None
         self._is_writable = True
-        
+
         # Try to create parent directory
         try:
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -47,14 +48,14 @@ class ConfigManager:
             print(f"Warning: Cannot create config directory {self.config_path.parent}: {e}")
             print("Configuration will be stored in memory only")
             self._is_writable = False
-        
+
         self._load_config()
 
     def _load_config(self) -> None:
         """Load configuration from file or create default"""
         if self.config_path.exists():
             try:
-                with open(self.config_path, "r") as f:
+                with open(self.config_path) as f:
                     data = json.load(f)
                     self._config = AppConfig(**data)
             except Exception as e:
@@ -73,7 +74,9 @@ class ConfigManager:
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             rocketlane_api_key=os.getenv("ROCKETLANE_API_KEY", ""),
             rocketlane_user_id=os.getenv("ROCKETLANE_USER_ID", ""),
-            rocketlane_api_base_url=os.getenv("ROCKETLANE_API_BASE_URL", "https://api.rocketlane.com/api/1.0"),
+            rocketlane_api_base_url=os.getenv(
+                "ROCKETLANE_API_BASE_URL", "https://api.rocketlane.com/api/1.0"
+            ),
             api_host=os.getenv("API_HOST", "0.0.0.0"),
             api_port=int(os.getenv("API_PORT", "8000")),
             debug_mode=os.getenv("DEBUG_MODE", "false").lower() == "true",
@@ -84,7 +87,7 @@ class ConfigManager:
         if not self._is_writable:
             print("Configuration is read-only, changes are stored in memory only")
             return
-            
+
         try:
             # Test write permissions first
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -103,7 +106,7 @@ class ConfigManager:
             self._load_config()
         return self._config
 
-    def update_config(self, updates: Dict[str, Any]) -> AppConfig:
+    def update_config(self, updates: dict[str, Any]) -> AppConfig:
         """Update configuration and save to file"""
         if self._config is None:
             self._load_config()

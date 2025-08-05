@@ -8,9 +8,13 @@ logger = get_logger(__name__)
 
 async def verify_api_keys():
     """Verify that required API keys are configured"""
-    logger.debug(f"Verifying API keys - Rocketlane key present: {bool(settings.rocketlane_api_key)}")
-    logger.debug(f"LLM Provider: {settings.llm_provider}, Has OpenAI key: {bool(settings.openai_api_key)}, Has Anthropic key: {bool(settings.anthropic_api_key)}")
-    
+    logger.debug(
+        f"Verifying API keys - Rocketlane key present: {bool(settings.rocketlane_api_key)}"
+    )
+    logger.debug(
+        f"LLM Provider: {settings.llm_provider}, Has OpenAI key: {bool(settings.openai_api_key)}, Has Anthropic key: {bool(settings.anthropic_api_key)}"
+    )
+
     if not settings.rocketlane_api_key:
         logger.error("Rocketlane API key is not configured in settings")
         raise HTTPException(

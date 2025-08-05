@@ -54,10 +54,12 @@ async def get_users():
             formatted_users = [
                 {
                     "userId": user.get("userId"),
-                    "emailId": user.get("email") or user.get("emailId"),  # Handle both 'email' and 'emailId'
+                    "emailId": user.get("email")
+                    or user.get("emailId"),  # Handle both 'email' and 'emailId'
                     "firstName": user.get("firstName", ""),
                     "lastName": user.get("lastName", ""),
-                    "fullName": f"{user.get('firstName', '')} {user.get('lastName', '')}".strip() or user.get("email", "").split("@")[0],
+                    "fullName": f"{user.get('firstName', '')} {user.get('lastName', '')}".strip()
+                    or user.get("email", "").split("@")[0],
                 }
                 for user in all_users
                 if user.get("userId") and (user.get("email") or user.get("emailId"))

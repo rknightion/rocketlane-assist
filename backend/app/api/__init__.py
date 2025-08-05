@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from .routes import config, projects, users, test
+from .routes import config, projects, test, users
 
 api_router = APIRouter()
 api_router.include_router(projects.router)

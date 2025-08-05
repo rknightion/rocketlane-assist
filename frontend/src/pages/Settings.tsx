@@ -92,7 +92,7 @@ function Settings({ onConfigUpdate }: SettingsProps) {
 
       await configApi.updateConfig(updateData);
       setMessage({ type: 'success', text: 'Configuration updated successfully.' });
-      
+
       // Clear sensitive fields
       setFormData(prev => ({
         ...prev,

@@ -4,7 +4,6 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ...core.config import settings
 from ...core.config_manager import get_config_manager
 
 router = APIRouter(prefix="/config", tags=["configuration"])
@@ -39,11 +38,11 @@ async def update_config(config: ConfigUpdate):
     try:
         # Build update dict with only non-None values
         updates = {}
-        
+
         # Always update these fields
         updates["llm_provider"] = config.llm_provider
         updates["llm_model"] = config.llm_model
-        
+
         # Update optional fields only if provided
         if config.openai_api_key is not None:
             updates["openai_api_key"] = config.openai_api_key
@@ -57,6 +56,7 @@ async def update_config(config: ConfigUpdate):
         # Test Rocketlane API key if provided
         if config.rocketlane_api_key:
             from ...services.rocketlane import RocketlaneClient
+
             try:
                 # Try to fetch projects to validate the API key
                 client = RocketlaneClient(api_key=config.rocketlane_api_key)
@@ -70,10 +70,7 @@ async def update_config(config: ConfigUpdate):
             except Exception as e:
                 # If API key is invalid, clear it
                 updates["rocketlane_api_key"] = ""
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid Rocketlane API key: {str(e)}"
-                )
+                raise HTTPException(status_code=400, detail=f"Invalid Rocketlane API key: {e!s}")
 
         # Update configuration
         config_manager = get_config_manager()
@@ -89,7 +86,7 @@ async def update_config(config: ConfigUpdate):
                 "has_anthropic_key": bool(updated_config.anthropic_api_key),
                 "has_rocketlane_key": bool(updated_config.rocketlane_api_key),
                 "rocketlane_user_id": updated_config.rocketlane_user_id,
-            }
+            },
         }
     except HTTPException:
         raise

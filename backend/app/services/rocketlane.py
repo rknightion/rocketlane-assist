@@ -18,37 +18,33 @@ class RocketlaneClient:
             "accept": "application/json",
             "Content-Type": "application/json",
         }
-        
+
         # Validate configuration
         if not self.api_key:
             self.logger.error("Rocketlane API key is not configured")
             raise ValueError("Rocketlane API key is required")
-        
+
         self.logger.debug(f"RocketlaneClient initialized with base_url: {self.base_url}")
 
     async def get_projects(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get all projects with pagination support"""
         all_projects = []
         page_token = None
-        
+
         try:
             async with httpx.AsyncClient() as client:
                 while True:
                     params = {"pageSize": limit}
                     if page_token:
                         params["pageToken"] = page_token
-                    
+
                     url = f"{self.base_url}/projects"
                     log_request_details(self.logger, "GET", url, self.headers, params)
-                    
-                    response = await client.get(
-                        url, 
-                        headers=self.headers,
-                        params=params
-                    )
-                    
+
+                    response = await client.get(url, headers=self.headers, params=params)
+
                     log_response_details(self.logger, response.status_code, response.text)
-                    
+
                     # Check for specific error conditions
                     if response.status_code == 401:
                         self.logger.error("Authentication failed - check API key")
@@ -56,23 +52,23 @@ class RocketlaneClient:
                     elif response.status_code == 403:
                         self.logger.error("Access forbidden - check API permissions")
                         raise ValueError("Access forbidden - check API key permissions")
-                    
+
                     response.raise_for_status()
                     data = response.json()
-                    
+
                     # Handle different response structures
                     if isinstance(data, list):
                         all_projects.extend(data)
                         break  # No pagination
                     elif "data" in data:
                         all_projects.extend(data["data"])
-                    
+
                         # Check for pagination
                         pagination = data.get("pagination", {})
                         if not pagination.get("hasMore", False):
                             break
                         page_token = pagination.get("nextPageToken")
-                        
+
                         # Safety check
                         if not page_token:
                             break
@@ -81,10 +77,10 @@ class RocketlaneClient:
                         break  # Assume no pagination
                     else:
                         break
-                    
+
             self.logger.info(f"Successfully fetched {len(all_projects)} projects")
             return all_projects
-            
+
         except httpx.HTTPError as e:
             self.logger.error(f"HTTP error fetching projects: {e}")
             raise
@@ -236,16 +232,16 @@ class RocketlaneClient:
     async def get_users(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get users from Rocketlane with specified limit"""
         params = {"pageSize": limit}
-        
+
         try:
             async with httpx.AsyncClient() as client:
                 url = f"{self.base_url}/users"
                 log_request_details(self.logger, "GET", url, self.headers, params)
-                
+
                 response = await client.get(url, headers=self.headers, params=params)
-                
+
                 log_response_details(self.logger, response.status_code, response.text)
-                
+
                 # Check for specific error conditions
                 if response.status_code == 401:
                     self.logger.error("Authentication failed - check API key")
@@ -253,10 +249,10 @@ class RocketlaneClient:
                 elif response.status_code == 403:
                     self.logger.error("Access forbidden - check API permissions")
                     raise ValueError("Access forbidden - check API key permissions")
-                
+
                 response.raise_for_status()
                 data = response.json()
-                
+
                 # Handle different response structures
                 if isinstance(data, list):
                     return data
@@ -264,9 +260,9 @@ class RocketlaneClient:
                     return data["data"]
                 elif "users" in data:
                     return data["users"]
-                    
+
                 return []
-                
+
         except httpx.HTTPError as e:
             self.logger.error(f"HTTP error fetching users: {e}")
             raise

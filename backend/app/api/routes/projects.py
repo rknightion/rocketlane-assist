@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ...core.config import settings
 from ...core.logging import get_logger
+from ...services.project_cache import ProjectCacheService
 from ...services.rocketlane import RocketlaneClient
 from ...services.summarization import SummarizationService
-from ...services.project_cache import ProjectCacheService
 from ..dependencies import verify_api_keys, verify_llm_api_key
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -18,23 +18,27 @@ async def get_projects(_: None = Depends(verify_api_keys)):
     """Get all projects from Rocketlane, filtered by user membership if configured"""
     try:
         logger.info("Fetching projects from Rocketlane")
-        logger.debug(f"Current settings - Provider: {settings.llm_provider}, Has OpenAI key: {bool(settings.openai_api_key)}, Has Anthropic key: {bool(settings.anthropic_api_key)}")
-        
+        logger.debug(
+            f"Current settings - Provider: {settings.llm_provider}, Has OpenAI key: {bool(settings.openai_api_key)}, Has Anthropic key: {bool(settings.anthropic_api_key)}"
+        )
+
         client = RocketlaneClient()
         projects = await client.get_projects()
-        
+
         # If a user is configured, filter projects based on membership
         if settings.rocketlane_user_id:
             cache_service = ProjectCacheService()
             user_id = int(settings.rocketlane_user_id)
-            
+
             # Get filtered projects where user is a member
             filtered_projects = cache_service.get_user_projects(user_id, projects)
-            
-            logger.info(f"User {user_id} has access to {len(filtered_projects)} out of {len(projects)} projects")
-            
+
+            logger.info(
+                f"User {user_id} has access to {len(filtered_projects)} out of {len(projects)} projects"
+            )
+
             return filtered_projects
-        
+
         # If no user configured, return all projects
         logger.info(f"Returning all {len(projects)} projects (no user filter)")
         return projects
@@ -43,7 +47,7 @@ async def get_projects(_: None = Depends(verify_api_keys)):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error fetching projects: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch projects: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch projects: {e!s}")
 
 
 @router.get("/{project_id}")
@@ -74,9 +78,7 @@ async def get_project_tasks(
 
 @router.post("/{project_id}/summarize")
 async def summarize_project_tasks(
-    project_id: str, 
-    _: None = Depends(verify_api_keys),
-    __: None = Depends(verify_llm_api_key)
+    project_id: str, _: None = Depends(verify_api_keys), __: None = Depends(verify_llm_api_key)
 ):
     """Summarize outstanding tasks for a project"""
     try:
@@ -93,18 +95,18 @@ async def refresh_project_cache(_: None = Depends(verify_api_keys)):
     try:
         cache_service = ProjectCacheService()
         cache_service.clear_cache()
-        
+
         # Fetch fresh project data
         client = RocketlaneClient()
         projects = await client.get_projects()
-        
+
         # Update cache
         cache_service.update_project_cache(projects)
-        
+
         return {
             "status": "success",
             "message": f"Cache refreshed with {len(projects)} projects",
-            "projects_cached": len(projects)
+            "projects_cached": len(projects),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
