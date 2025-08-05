@@ -39,24 +39,38 @@ git clone <repository-url>
 cd rocketlane-assist
 ```
 
-2. Configure your API keys:
-```bash
-cp backend/.env.example backend/.env
-# Edit backend/.env with your API keys
-```
-
-3. Run with Docker Compose:
+2. Run with Docker Compose:
 ```bash
 docker compose up -d
 ```
 
-4. Access the application:
+3. Access the application:
 - Frontend: http://localhost:3000
 - API Docs: http://localhost:8000/docs
 
+4. Configure your API keys:
+- Navigate to http://localhost:3000/settings
+- Enter your API keys through the web interface
+
 ## Development Setup
 
-### Backend
+### Running with Docker (Recommended)
+
+```bash
+# Production mode
+docker compose up -d
+
+# Debug mode with verbose logging
+DEBUG_MODE=true docker compose up
+
+# View logs
+docker compose logs -f backend
+docker compose logs -f frontend
+```
+
+### Local Development (without Docker)
+
+#### Backend
 
 1. Navigate to the backend directory:
 ```bash
@@ -73,7 +87,7 @@ uv sync
 uv run uvicorn app.main:app --reload
 ```
 
-### Frontend
+#### Frontend
 
 1. Navigate to the frontend directory:
 ```bash
@@ -92,7 +106,7 @@ npm run dev
 
 ## Configuration
 
-Configure the application through the web interface at `/settings` or by editing the `.env` file:
+Configure the application through the web interface at `/settings`:
 
 - `LLM_PROVIDER`: Choose between `openai` or `anthropic`
 - `LLM_MODEL`: Specify the model to use (e.g., `gpt-4`, `claude-3-opus-20240229`)
@@ -120,14 +134,6 @@ The backend API documentation is available at http://localhost:8000/docs when ru
 - **LLM Integration**: Abstraction layer supporting multiple providers
 - **Containerization**: Docker for easy deployment and development
 
-## Development with DevContainers
-
-This project includes DevContainer configuration for VS Code:
-
-1. Install the Remote - Containers extension in VS Code
-2. Open the project in VS Code
-3. Click "Reopen in Container" when prompted
-4. The development environment will be automatically configured
 
 ## License
 

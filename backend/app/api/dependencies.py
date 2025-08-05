@@ -1,11 +1,17 @@
 from fastapi import HTTPException, Request, status
 
 from ..core.config import settings
+from ..core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 async def verify_api_keys():
     """Verify that required API keys are configured"""
+    logger.debug(f"Verifying API keys - Rocketlane key present: {bool(settings.rocketlane_api_key)}")
+    
     if not settings.rocketlane_api_key:
+        logger.error("Rocketlane API key is not configured in settings")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Rocketlane API key not configured",

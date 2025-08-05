@@ -3,18 +3,21 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from ...core.config import settings
+from ...core.logging import get_logger
 from ...services.rocketlane import RocketlaneClient
 from ...services.summarization import SummarizationService
 from ...services.project_cache import ProjectCacheService
 from ..dependencies import verify_api_keys
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+logger = get_logger(__name__)
 
 
 @router.get("/", response_model=list[dict[str, Any]])
 async def get_projects(_: None = Depends(verify_api_keys)):
     """Get all projects from Rocketlane, filtered by user membership if configured"""
     try:
+        logger.info("Fetching projects from Rocketlane")
         client = RocketlaneClient()
         projects = await client.get_projects()
         
@@ -26,14 +29,19 @@ async def get_projects(_: None = Depends(verify_api_keys)):
             # Get filtered projects where user is a member
             filtered_projects = cache_service.get_user_projects(user_id, projects)
             
-            print(f"User {user_id} has access to {len(filtered_projects)} out of {len(projects)} projects")
+            logger.info(f"User {user_id} has access to {len(filtered_projects)} out of {len(projects)} projects")
             
             return filtered_projects
         
         # If no user configured, return all projects
+        logger.info(f"Returning all {len(projects)} projects (no user filter)")
         return projects
+    except ValueError as e:
+        logger.error(f"Configuration error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error fetching projects: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch projects: {str(e)}")
 
 
 @router.get("/{project_id}")

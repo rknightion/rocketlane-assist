@@ -28,6 +28,7 @@ class AppConfig(BaseModel):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8000"]
+    debug_mode: bool = False
 
 
 class ConfigManager:
@@ -75,6 +76,7 @@ class ConfigManager:
             rocketlane_api_base_url=os.getenv("ROCKETLANE_API_BASE_URL", "https://api.rocketlane.com/api/1.0"),
             api_host=os.getenv("API_HOST", "0.0.0.0"),
             api_port=int(os.getenv("API_PORT", "8000")),
+            debug_mode=os.getenv("DEBUG_MODE", "false").lower() == "true",
         )
 
     def _save_config(self) -> None:

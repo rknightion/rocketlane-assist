@@ -20,5 +20,11 @@ if [ -d "$CONFIG_DIR" ]; then
     fi
 fi
 
-# Execute the main command
-exec "$@"
+# Check if debug mode is enabled
+if [ "$DEBUG_MODE" = "true" ]; then
+    echo "Debug mode enabled - starting with verbose logging"
+    exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --log-level debug
+else
+    # Execute the main command
+    exec "$@"
+fi

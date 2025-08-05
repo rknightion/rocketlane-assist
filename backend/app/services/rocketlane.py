@@ -3,12 +3,14 @@ from typing import Any
 import httpx
 
 from ..core.config import settings
+from ..core.logging import get_logger, log_request_details, log_response_details
 
 
 class RocketlaneClient:
     """Client for interacting with Rocketlane API"""
 
     def __init__(self, api_key: str | None = None, base_url: str | None = None):
+        self.logger = get_logger(__name__)
         self.api_key = api_key or settings.rocketlane_api_key
         self.base_url = base_url or settings.rocketlane_api_base_url
         self.headers = {
@@ -16,49 +18,79 @@ class RocketlaneClient:
             "accept": "application/json",
             "Content-Type": "application/json",
         }
+        
+        # Validate configuration
+        if not self.api_key:
+            self.logger.error("Rocketlane API key is not configured")
+            raise ValueError("Rocketlane API key is required")
+        
+        self.logger.debug(f"RocketlaneClient initialized with base_url: {self.base_url}")
 
     async def get_projects(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get all projects with pagination support"""
         all_projects = []
         page_token = None
         
-        async with httpx.AsyncClient() as client:
-            while True:
-                params = {"pageSize": limit}
-                if page_token:
-                    params["pageToken"] = page_token
-                
-                response = await client.get(
-                    f"{self.base_url}/projects", 
-                    headers=self.headers,
-                    params=params
-                )
-                response.raise_for_status()
-                data = response.json()
-                
-                # Handle different response structures
-                if isinstance(data, list):
-                    all_projects.extend(data)
-                    break  # No pagination
-                elif "data" in data:
-                    all_projects.extend(data["data"])
+        try:
+            async with httpx.AsyncClient() as client:
+                while True:
+                    params = {"pageSize": limit}
+                    if page_token:
+                        params["pageToken"] = page_token
                     
-                    # Check for pagination
-                    pagination = data.get("pagination", {})
-                    if not pagination.get("hasMore", False):
+                    url = f"{self.base_url}/projects"
+                    log_request_details(self.logger, "GET", url, self.headers, params)
+                    
+                    response = await client.get(
+                        url, 
+                        headers=self.headers,
+                        params=params
+                    )
+                    
+                    log_response_details(self.logger, response.status_code, response.text)
+                    
+                    # Check for specific error conditions
+                    if response.status_code == 401:
+                        self.logger.error("Authentication failed - check API key")
+                        raise ValueError("Invalid Rocketlane API key")
+                    elif response.status_code == 403:
+                        self.logger.error("Access forbidden - check API permissions")
+                        raise ValueError("Access forbidden - check API key permissions")
+                    
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    # Handle different response structures
+                    if isinstance(data, list):
+                        all_projects.extend(data)
+                        break  # No pagination
+                    elif "data" in data:
+                        all_projects.extend(data["data"])
+                    
+                        # Check for pagination
+                        pagination = data.get("pagination", {})
+                        if not pagination.get("hasMore", False):
+                            break
+                        page_token = pagination.get("nextPageToken")
+                        
+                        # Safety check
+                        if not page_token:
+                            break
+                    elif "projects" in data:
+                        all_projects.extend(data["projects"])
+                        break  # Assume no pagination
+                    else:
                         break
-                    page_token = pagination.get("nextPageToken")
                     
-                    # Safety check
-                    if not page_token:
-                        break
-                elif "projects" in data:
-                    all_projects.extend(data["projects"])
-                    break  # Assume no pagination
-                else:
-                    break
-                    
-        return all_projects
+            self.logger.info(f"Successfully fetched {len(all_projects)} projects")
+            return all_projects
+            
+        except httpx.HTTPError as e:
+            self.logger.error(f"HTTP error fetching projects: {e}")
+            raise
+        except Exception as e:
+            self.logger.error(f"Unexpected error fetching projects: {e}")
+            raise
 
     async def get_project(self, project_id: str) -> dict[str, Any]:
         """Get details of a specific project"""

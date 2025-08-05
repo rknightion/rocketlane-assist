@@ -2,7 +2,7 @@
 
 ## Completed Tasks (Initial Development)
 ✓ Create project structure and initialize with uv
-✓ Set up Docker and devcontainer configuration
+✓ Set up Docker configuration
 ✓ Create backend API structure with FastAPI
 ✓ Set up LLM provider abstraction (OpenAI/Anthropic)
 ✓ Implement Rocketlane API client

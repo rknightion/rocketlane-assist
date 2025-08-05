@@ -5,26 +5,35 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: backend
     ports:
       - "8000:8000"
     environment:
+      # Configuration path - where settings.json will be stored
       - CONFIG_PATH=/app/config/settings.json
+      
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      
+      # Debug mode - set to true to enable debug logging
+      - DEBUG_MODE=true
     volumes:
-      - ./backend/app:/app/backend/app
+      # Mount config directory for persistent settings
       - ./config:/app/config
+      # For development: mount source code for hot reload
+      # Uncomment the following line for development
+      # - ./backend/app:/app/backend/app
     restart: unless-stopped
     networks:
       - rocketlane-network
 
   frontend:
     build:
-      context: ./frontend
+      context: .
       dockerfile: Dockerfile
-      target: production
+      target: frontend
     ports:
       - "3000:3000"
-    environment:
-      - VITE_API_URL=http://localhost:8000
     depends_on:
       - backend
     restart: unless-stopped
@@ -34,6 +43,3 @@ services:
 networks:
   rocketlane-network:
     driver: bridge
-
-volumes:
-  app-data:

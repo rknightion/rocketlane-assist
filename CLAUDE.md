@@ -1,5 +1,24 @@
 # Rocketlane Assist - AI-Powered Project Management Assistant
 
+## IMPORTANT: Configuration and File Management Rules
+
+**NEVER CREATE MULTIPLE VERSIONS OF CONFIGURATION FILES**
+- ONE Dockerfile at the root - use multi-stage builds with target names
+- ONE docker-compose.yml - use environment variables for different modes
+- NO .env files - all defaults are in docker-compose.yml environment section
+- Configuration is managed via the web UI and stored in config/settings.json
+
+**Debug Mode:**
+- Enable debug logging: `DEBUG_MODE=true docker compose up`
+- Do NOT create separate debug files or scripts
+- All configuration variations should use environment variables
+
+**File Structure Rules:**
+- Never create: Dockerfile.dev, docker-compose.dev.yml, docker-compose.debug.yml
+- Never create multiple .env files or .env variants
+- Never create debug.sh or similar wrapper scripts
+- Keep configuration simple and use environment variables for variations
+
 ## Project Overview
 
 Rocketlane Assist is an AI-powered tool that integrates with Rocketlane (a professional service engagement planning and tracking platform) to help consultants and project managers work more efficiently through AI-driven task summarization and project insights.
@@ -25,12 +44,15 @@ Rocketlane Assist is an AI-powered tool that integrates with Rocketlane (a profe
 **IMPORTANT: Run these from the project root directory**
 
 ```bash
-# Full application startup
-./quickstart.sh                           # Guided setup script
+# Production mode
 docker compose up -d                      # Run entire stack
 docker compose down                       # Stop all services
 
-# Development workflow
+# Debug mode (with verbose logging)
+DEBUG_MODE=true docker compose up         # Run with debug logging
+DEBUG_MODE=true docker compose up -d      # Run in background with debug logging
+
+# Development workflow (without Docker)
 cd backend && uv sync && uv run uvicorn app.main:app --reload  # Backend dev
 cd frontend && npm install && npm run dev                      # Frontend dev
 
@@ -38,6 +60,10 @@ cd frontend && npm install && npm run dev                      # Frontend dev
 curl http://localhost:8000/health         # Backend health
 curl http://localhost:3000               # Frontend access
 curl http://localhost:8000/docs          # API documentation
+
+# View logs
+docker compose logs -f backend            # Backend logs
+docker compose logs -f frontend           # Frontend logs
 ```
 
 ## Architecture Overview
@@ -75,26 +101,26 @@ rocketlane-assist/
 
 ## Configuration Management
 
-**Environment Setup (Required):**
+**Initial Setup:**
 
-1. Copy environment template: `cp backend/.env.example backend/.env`
-2. Configure API keys in `backend/.env`:
+1. Start the application: `docker compose up -d`
+2. Navigate to http://localhost:3000/settings
+3. Configure your API keys through the web UI:
+   - Choose LLM Provider (OpenAI or Anthropic)
+   - Enter the appropriate API key
+   - Enter your Rocketlane API key
+   - Select a user from the dropdown (required)
 
+**Environment Variables (Optional):**
+You can override defaults when starting the application:
 ```bash
-# LLM Provider (choose one or both)
-LLM_PROVIDER=openai                    # or "anthropic"
-OPENAI_API_KEY=your_openai_key_here
-ANTHROPIC_API_KEY=your_anthropic_key_here
-
-# Rocketlane Integration (always required)
-ROCKETLANE_API_KEY=your_rocketlane_key_here
-ROCKETLANE_USER_ID=                   # User ID to filter tasks (leave empty for all tasks)
-
-# Optional settings
-LLM_MODEL=gpt-4                       # or claude-3-opus-20240229
-API_HOST=0.0.0.0
-API_PORT=8000
+# Examples:
+OPENAI_API_KEY=sk-... docker compose up -d
+DEBUG_MODE=true docker compose up
+LLM_PROVIDER=anthropic ANTHROPIC_API_KEY=sk-ant-... docker compose up -d
 ```
+
+All configuration is persisted in `config/settings.json` and can be updated via the web UI.
 
 **Configuration Access:**
 - UI Settings: http://localhost:3000/settings

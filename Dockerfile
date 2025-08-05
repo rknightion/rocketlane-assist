@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1
 
-# Multi-stage build for efficient image size
-FROM python:3.13-slim as builder
+# =============================================================================
+# Backend Build Stage
+# =============================================================================
+FROM python:3.13-slim as backend-builder
 
 # Install uv using the standalone installer
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
@@ -10,7 +12,6 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
 
 # Install dependencies in a separate layer for better caching
-# First, copy only the files needed for dependency resolution
 COPY backend/pyproject.toml backend/uv.lock ./
 
 # Install dependencies without the project itself for better layer caching
@@ -24,8 +25,27 @@ COPY backend/ ./backend/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --compile-bytecode
 
-# Production stage
-FROM python:3.13-slim
+# =============================================================================
+# Frontend Build Stage
+# =============================================================================
+FROM node:22-alpine as frontend-builder
+
+WORKDIR /app
+
+# Copy package files
+COPY frontend/package*.json ./
+RUN npm ci
+
+# Copy source code
+COPY frontend/ .
+
+# Build the application
+RUN npm run build
+
+# =============================================================================
+# Backend Production Stage
+# =============================================================================
+FROM python:3.13-slim as backend
 
 # Install curl for health checks
 RUN apt-get update && apt-get install -y \
@@ -39,8 +59,8 @@ RUN useradd -m -u 1000 appuser
 WORKDIR /app
 
 # Copy the virtual environment and application from builder
-COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
-COPY --from=builder --chown=appuser:appuser /app/backend /app/backend
+COPY --from=backend-builder --chown=appuser:appuser /app/.venv /app/.venv
+COPY --from=backend-builder --chown=appuser:appuser /app/backend /app/backend
 
 # Copy entrypoint script
 COPY --chmod=755 backend/entrypoint.sh /app/entrypoint.sh
@@ -64,5 +84,22 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Set entrypoint for permissions handling
 ENTRYPOINT ["/app/entrypoint.sh"]
 
-# Run the application
+# Run the application - can be overridden for debug mode
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# =============================================================================
+# Frontend Production Stage
+# =============================================================================
+FROM nginx:alpine as frontend
+
+# Copy built assets from builder
+COPY --from=frontend-builder /app/dist /usr/share/nginx/html
+
+# Copy nginx configuration
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+
+# Expose port
+EXPOSE 3000
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
