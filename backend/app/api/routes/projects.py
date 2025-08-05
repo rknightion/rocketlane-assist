@@ -7,7 +7,7 @@ from ...core.logging import get_logger
 from ...services.rocketlane import RocketlaneClient
 from ...services.summarization import SummarizationService
 from ...services.project_cache import ProjectCacheService
-from ..dependencies import verify_api_keys
+from ..dependencies import verify_api_keys, verify_llm_api_key
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 logger = get_logger(__name__)
@@ -18,6 +18,8 @@ async def get_projects(_: None = Depends(verify_api_keys)):
     """Get all projects from Rocketlane, filtered by user membership if configured"""
     try:
         logger.info("Fetching projects from Rocketlane")
+        logger.debug(f"Current settings - Provider: {settings.llm_provider}, Has OpenAI key: {bool(settings.openai_api_key)}, Has Anthropic key: {bool(settings.anthropic_api_key)}")
+        
         client = RocketlaneClient()
         projects = await client.get_projects()
         
@@ -71,7 +73,11 @@ async def get_project_tasks(
 
 
 @router.post("/{project_id}/summarize")
-async def summarize_project_tasks(project_id: str, _: None = Depends(verify_api_keys)):
+async def summarize_project_tasks(
+    project_id: str, 
+    _: None = Depends(verify_api_keys),
+    __: None = Depends(verify_llm_api_key)
+):
     """Summarize outstanding tasks for a project"""
     try:
         service = SummarizationService()

@@ -9,6 +9,7 @@ logger = get_logger(__name__)
 async def verify_api_keys():
     """Verify that required API keys are configured"""
     logger.debug(f"Verifying API keys - Rocketlane key present: {bool(settings.rocketlane_api_key)}")
+    logger.debug(f"LLM Provider: {settings.llm_provider}, Has OpenAI key: {bool(settings.openai_api_key)}, Has Anthropic key: {bool(settings.anthropic_api_key)}")
     
     if not settings.rocketlane_api_key:
         logger.error("Rocketlane API key is not configured in settings")
@@ -17,6 +18,14 @@ async def verify_api_keys():
             detail="Rocketlane API key not configured",
         )
 
+    # Note: We don't check LLM API keys here because:
+    # 1. Projects endpoint doesn't need LLM functionality
+    # 2. During onboarding, users test Rocketlane connection before setting LLM keys
+    # LLM API key validation should be done in endpoints that actually use LLM services
+
+
+async def verify_llm_api_key():
+    """Verify that LLM API key is configured for the selected provider"""
     if settings.llm_provider == "openai" and not settings.openai_api_key:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
