@@ -7,6 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api import api_router
 from .api.dependencies import verify_user_id_configured
 from .core.config import settings
+from .core.otel_config import configure_otel
+from .core.telemetry import instrument_app
+
+# Configure OpenTelemetry BEFORE creating the app
+configure_otel()
 
 # Configure root logger based on DEBUG_MODE environment variable
 if os.getenv("DEBUG_MODE", "false").lower() == "true":
@@ -53,6 +58,9 @@ async def enforce_user_id_middleware(request: Request, call_next):
 
 # Include API routes
 app.include_router(api_router, prefix="/api/v1")
+
+# Initialize OpenTelemetry instrumentation
+instrument_app(app)
 
 
 @app.get("/")

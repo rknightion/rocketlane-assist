@@ -1,9 +1,11 @@
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from anthropic import NOT_GIVEN, AsyncAnthropic
-from anthropic.types import MessageParam
 
 from .base import BaseLLMProvider
+
+if TYPE_CHECKING:
+    from anthropic.types import MessageParam
 
 
 class AnthropicProvider(BaseLLMProvider):
@@ -21,7 +23,7 @@ class AnthropicProvider(BaseLLMProvider):
         max_tokens: int | None = None,
     ) -> str:
         messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
-        typed_messages = cast(list[MessageParam], messages)
+        typed_messages = cast("list[MessageParam]", messages)
 
         response = await self.client.messages.create(
             model=self.model,
@@ -50,7 +52,7 @@ class AnthropicProvider(BaseLLMProvider):
             else:
                 anthropic_messages.append({"role": msg["role"], "content": msg["content"]})
 
-        typed_messages = cast(list[MessageParam], anthropic_messages)
+        typed_messages = cast("list[MessageParam]", anthropic_messages)
 
         response = await self.client.messages.create(
             model=self.model,

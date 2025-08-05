@@ -36,8 +36,8 @@ class ConfigManager:
     """Manages application configuration with file persistence"""
 
     def __init__(self, config_path: str | None = None):
-        # Default to /config/settings.json in container, or local config/settings.json
-        self.config_path = Path(config_path or os.getenv("CONFIG_PATH", "/config/settings.json"))
+        # ALWAYS use /app/config/settings.json - ignore any environment variables
+        self.config_path = Path("/app/config/settings.json")
         self._config: AppConfig | None = None
         self._is_writable = True
 

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { FaroErrorBoundary } from '@grafana/faro-react';
 import ProjectList from './pages/ProjectList';
 import ProjectDetail from './pages/ProjectDetail';
 import Settings from './pages/Settings';
 import OnboardingWizard from './components/OnboardingWizard';
 import { configApi } from './services/api';
+import { initializeObservability } from './lib/observability';
 import './App.css';
 
 function App() {
@@ -14,6 +16,9 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
+    // Initialize observability
+    initializeObservability();
+    
     checkConfiguration();
   }, []);
 
@@ -47,8 +52,9 @@ function App() {
   }
 
   return (
-    <Router>
-      <div className="app">
+    <FaroErrorBoundary>
+      <Router>
+        <div className="app">
         {showOnboarding ? (
           <Routes>
             <Route path="*" element={<OnboardingWizard onComplete={completeOnboarding} />} />
@@ -102,6 +108,7 @@ function App() {
         )}
       </div>
     </Router>
+    </FaroErrorBoundary>
   );
 }
 

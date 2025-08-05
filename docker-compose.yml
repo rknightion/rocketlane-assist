@@ -6,21 +6,9 @@ services:
       target: backend
     ports:
       - "8000:8000"
-    environment:
-      # Configuration path - where settings.json will be stored
-      - CONFIG_PATH=/app/config/settings.json
-
-      - API_HOST=0.0.0.0
-      - API_PORT=8000
-
-      # Debug mode - set to true to enable debug logging
-      - DEBUG_MODE=true
+    env_file: ".env"
     volumes:
-      # Mount config directory for persistent settings
       - ./config:/app/config
-      # For development: mount source code for hot reload
-      # Uncomment the following line for development
-      # - ./backend/app:/app/backend/app
     restart: unless-stopped
     networks:
       - rocketlane-network

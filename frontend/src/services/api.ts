@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { faro } from '@grafana/faro-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -7,6 +8,28 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+// Add interceptor to propagate trace context
+api.interceptors.request.use((config) => {
+  // Get current trace context from Faro if available
+  const faroInstance = faro;
+  if (faroInstance && faroInstance.api?.getOTEL) {
+    const otel = faroInstance.api.getOTEL();
+    if (otel) {
+      const activeSpan = otel.trace.getActiveSpan();
+      if (activeSpan) {
+        const spanContext = activeSpan.spanContext();
+        if (spanContext) {
+          // Add W3C Trace Context headers
+          config.headers['traceparent'] = `00-${spanContext.traceId}-${spanContext.spanId}-01`;
+          // Add baggage for service namespace correlation
+          config.headers['baggage'] = 'service.namespace=rocketlane';
+        }
+      }
+    }
+  }
+  return config;
 });
 
 export interface Project {

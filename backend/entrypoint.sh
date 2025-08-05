@@ -2,7 +2,8 @@
 set -e
 
 # Ensure the config directory exists and has correct permissions
-CONFIG_DIR="${CONFIG_PATH%/*}"
+# Hardcoded path - always use /app/config
+CONFIG_DIR="/app/config"
 if [ ! -d "$CONFIG_DIR" ]; then
     mkdir -p "$CONFIG_DIR"
 fi

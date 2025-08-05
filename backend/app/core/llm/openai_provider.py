@@ -1,9 +1,11 @@
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletionMessageParam
 
 from .base import BaseLLMProvider
+
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletionMessageParam
 
 
 class OpenAIProvider(BaseLLMProvider):
@@ -34,7 +36,7 @@ class OpenAIProvider(BaseLLMProvider):
         max_tokens: int | None = None,
     ) -> str:
         # Cast messages to the expected type for OpenAI API
-        typed_messages = cast(list[ChatCompletionMessageParam], messages)
+        typed_messages = cast("list[ChatCompletionMessageParam]", messages)
 
         response = await self.client.chat.completions.create(
             model=self.model,
