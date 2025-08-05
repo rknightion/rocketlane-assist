@@ -70,8 +70,8 @@ const RocketlaneStep: React.FC<{
         rocketlane_api_key: formData.rocketlane_api_key
       });
 
-      // Try to fetch projects to test the key
-      const response = await fetch('/api/v1/projects/', {
+      // Use dedicated test endpoint for quick validation
+      const response = await fetch('/api/v1/test/rocketlane', {
         headers: { 'Accept': 'application/json' }
       });
 
@@ -333,8 +333,8 @@ const APIKeyStep: React.FC<{
 
       await configApi.updateConfig(updateData);
 
-      // Try a simple summarization to test the key
-      const testResponse = await fetch('/api/v1/projects/', {
+      // Use dedicated LLM test endpoint
+      const testResponse = await fetch('/api/v1/test/llm', {
         headers: { 'Accept': 'application/json' }
       });
 
