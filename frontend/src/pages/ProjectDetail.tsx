@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { projectsApi, Project, Task, TaskSummary } from '../services/api';
 import { trackEvent, measurePerformance } from '../lib/observability';
 
@@ -9,6 +11,7 @@ function ProjectDetail() {
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [summary, setSummary] = useState<TaskSummary | null>(null);
+  const [streamingSummary, setStreamingSummary] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [summarizing, setSummarizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,28 +68,53 @@ function ProjectDetail() {
     const startTime = Date.now();
     try {
       setSummarizing(true);
+      setSummary(null);
+      setStreamingSummary('');
 
       // Track summarization attempt
       trackEvent('summarization_started', {
         projectId: projectId!,
         projectName: project?.projectName,
-        taskCount: tasks.length
+        taskCount: tasks.length,
+        streaming: true
       });
 
-      const summaryData = await projectsApi.summarizeProjectTasks(projectId!);
-      setSummary(summaryData);
+      // Always use streaming API
+      let fullSummary = '';
+      let metadata: any = null;
+      
+      for await (const event of projectsApi.summarizeProjectTasksStream(projectId!)) {
+        if (event.type === 'metadata') {
+          metadata = event.data;
+        } else if (event.type === 'chunk') {
+          fullSummary += event.data;
+          setStreamingSummary(fullSummary);
+        } else if (event.type === 'done') {
+          // Create the final summary object
+          setSummary({
+            project_id: projectId!,
+            project_name: metadata?.project_name || project?.projectName || '',
+            summary: fullSummary,
+            task_count: metadata?.task_count || tasks.length,
+            tasks: tasks
+          });
+          setStreamingSummary('');
+        }
+      }
 
       // Track successful summarization
       trackEvent('summarization_completed', {
         projectId: projectId!,
         projectName: project?.projectName,
-        summaryLength: summaryData.summary.length
+        summaryLength: summary?.summary.length || streamingSummary.length,
+        streaming: true
       });
 
       // Measure performance
       measurePerformance('summarization_time', Date.now() - startTime, {
         projectId: projectId!,
-        taskCount: tasks.length
+        taskCount: tasks.length,
+        streaming: true
       });
     } catch (err) {
       // Check if it's a user ID configuration error
@@ -101,7 +129,8 @@ function ProjectDetail() {
       trackEvent('summarization_error', {
         projectId: projectId!,
         error: error instanceof Error ? error.message : 'Unknown error',
-        statusCode: (error as { response?: { status?: number } }).response?.status
+        statusCode: (error as { response?: { status?: number } }).response?.status,
+        streaming: true
       });
     } finally {
       setSummarizing(false);
@@ -132,11 +161,16 @@ function ProjectDetail() {
           {summarizing ? 'Generating Summary...' : 'Summarize Tasks'}
         </button>
 
-        {summary && (
+        {(summary || streamingSummary) && (
           <div className="summary-section">
             <h4>AI Summary</h4>
             <div className="summary-content">
-              {summary.summary}
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {summary?.summary || streamingSummary}
+              </ReactMarkdown>
+              {summarizing && (
+                <span className="streaming-indicator">▊</span>
+              )}
             </div>
           </div>
         )}

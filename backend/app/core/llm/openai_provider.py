@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, AsyncGenerator, cast
 
 from openai import AsyncOpenAI
 
@@ -45,3 +45,30 @@ class OpenAIProvider(BaseLLMProvider):
             max_tokens=max_tokens,
         )
         return response.choices[0].message.content or ""
+    
+    async def stream_completion(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """Stream a completion from OpenAI"""
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        
+        typed_messages = cast("list[ChatCompletionMessageParam]", messages)
+        
+        stream = await self.client.chat.completions.create(
+            model=self.model,
+            messages=typed_messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=True,
+        )
+        
+        async for chunk in stream:
+            if chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content

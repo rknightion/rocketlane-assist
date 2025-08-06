@@ -1,5 +1,6 @@
 from typing import Any
-
+import asyncio
+import json
 import httpx
 
 from ..core.config import settings
@@ -18,6 +19,8 @@ class RocketlaneClient:
             "accept": "application/json",
             "Content-Type": "application/json",
         }
+        self.max_retries = 3
+        self.initial_retry_delay = 1.0  # seconds
 
         # Validate configuration
         if not self.api_key:
@@ -25,6 +28,30 @@ class RocketlaneClient:
             raise ValueError("Rocketlane API key is required")
 
         self.logger.debug(f"RocketlaneClient initialized with base_url: {self.base_url}")
+    
+    async def _handle_rate_limiting(self, response: httpx.Response, attempt: int = 0) -> bool:
+        """Handle rate limiting with exponential backoff.
+        
+        Returns True if request should be retried, False otherwise.
+        """
+        if response.status_code == 429:
+            if attempt >= self.max_retries:
+                self.logger.error(f"Max retries ({self.max_retries}) exceeded for rate limiting")
+                return False
+                
+            # Check for Retry-After header
+            retry_after = response.headers.get("Retry-After")
+            if retry_after:
+                wait_time = int(retry_after)
+            else:
+                # Exponential backoff
+                wait_time = self.initial_retry_delay * (2 ** attempt)
+            
+            self.logger.warning(f"Rate limited. Waiting {wait_time} seconds before retry (attempt {attempt + 1}/{self.max_retries})")
+            await asyncio.sleep(wait_time)
+            return True
+        
+        return False
 
     async def get_projects(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get all projects with pagination support"""
@@ -107,16 +134,13 @@ class RocketlaneClient:
         """Get tasks, optionally filtered by project, status, and assigned user"""
         params: dict[str, Any] = {"pageSize": limit}
 
-        # Build filters for search API - apply each filter as a separate parameter
-        # The Rocketlane API seems to have issues with multiple filters in a single parameter
-        # Let's try using separate filter parameters or only essential filters
+        # According to Rocketlane API docs, filters should be individual query parameters
+        # not a single "filters" parameter. Format: field.operation=value
         if project_id:
-            params["filters"] = f"project.eq={project_id}"
-            # If we have a project filter, that's usually the most important one
-            # We can add additional filtering on the client side if needed
-        elif user_id:
-            # If no project but we have a user, filter by user
-            params["filters"] = f"assignees.cn={user_id}"
+            params["project.eq"] = project_id
+        
+        if user_id:
+            params["assignees.cn"] = user_id
         
         # Note: Status filtering seems to cause issues when combined with other filters
         # We'll handle status filtering in the response if needed
@@ -234,19 +258,16 @@ class RocketlaneClient:
         """Get time entries with optional filtering"""
         params: dict[str, Any] = {"pageSize": limit}
 
-        # Build filters
-        filters = []
+        # According to Rocketlane API docs, filters should be individual query parameters
+        # not a single "filters" parameter. Format: field.operation=value
         if user_id:
-            filters.append(f"user.eq={user_id}")
+            params["user.eq"] = user_id
         if project_id:
-            filters.append(f"project.eq={project_id}")
+            params["project.eq"] = project_id
         if date_from:
-            filters.append(f"date.ge={date_from}")
+            params["date.ge"] = date_from
         if date_to:
-            filters.append(f"date.le={date_to}")
-
-        if filters:
-            params["filters"] = ",".join(filters)
+            params["date.le"] = date_to
 
         async with httpx.AsyncClient() as client:
             response = await client.get(
@@ -262,6 +283,14 @@ class RocketlaneClient:
             elif "timeEntries" in data:
                 return data["timeEntries"]
             return []
+
+    async def get_user(self, user_id: str) -> dict[str, Any]:
+        """Get a specific user by ID"""
+        async with httpx.AsyncClient() as client:
+            url = f"{self.base_url}/users/{user_id}"
+            response = await client.get(url, headers=self.headers)
+            response.raise_for_status()
+            return response.json()
 
     async def get_users(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get users from Rocketlane with specified limit"""
@@ -302,4 +331,187 @@ class RocketlaneClient:
             raise
         except Exception as e:
             self.logger.error(f"Unexpected error fetching users: {e}")
+            raise
+    
+    async def get_time_entry_categories(self) -> list[dict[str, Any]]:
+        """Get all time entry categories."""
+        try:
+            async with httpx.AsyncClient() as client:
+                url = f"{self.base_url}/time-entries/categories"
+                log_request_details(self.logger, "GET", url, self.headers, {})
+                
+                attempt = 0
+                while attempt <= self.max_retries:
+                    response = await client.get(url, headers=self.headers)
+                    
+                    # Handle rate limiting
+                    if await self._handle_rate_limiting(response, attempt):
+                        attempt += 1
+                        continue
+                    
+                    log_response_details(self.logger, response.status_code, response.text[:500] if response.text else "")
+                    response.raise_for_status()
+                    
+                    data = response.json()
+                    
+                    # Handle different response structures
+                    if isinstance(data, list):
+                        return data
+                    elif "data" in data:
+                        return data["data"]
+                    elif "categories" in data:
+                        return data["categories"]
+                    return []
+                
+                # If we get here, max retries exceeded
+                raise httpx.HTTPError(f"Max retries exceeded for time entry categories")
+                
+        except httpx.HTTPError as e:
+            self.logger.error(f"HTTP error fetching time entry categories: {e}")
+            raise
+        except Exception as e:
+            self.logger.error(f"Unexpected error fetching time entry categories: {e}")
+            raise
+    
+    async def get_tasks_by_project(self, project_id: str) -> list[dict[str, Any]]:
+        """Get all tasks for a specific project (for timesheets)."""
+        try:
+            params = {
+                "projectId.eq": project_id,
+                "pageSize": 500  # Get more tasks per page
+            }
+            
+            all_tasks = []
+            page_token = None
+            
+            async with httpx.AsyncClient() as client:
+                while True:
+                    if page_token:
+                        params["pageToken"] = page_token
+                    
+                    url = f"{self.base_url}/tasks"
+                    log_request_details(self.logger, "GET", url, self.headers, params)
+                    
+                    attempt = 0
+                    while attempt <= self.max_retries:
+                        response = await client.get(url, headers=self.headers, params=params)
+                        
+                        # Handle rate limiting
+                        if await self._handle_rate_limiting(response, attempt):
+                            attempt += 1
+                            continue
+                        
+                        break
+                    
+                    log_response_details(self.logger, response.status_code, response.text[:500] if response.text else "")
+                    response.raise_for_status()
+                    
+                    data = response.json()
+                    
+                    # Extract tasks from response
+                    if isinstance(data, list):
+                        all_tasks.extend(data)
+                        break  # No pagination
+                    elif "data" in data:
+                        all_tasks.extend(data["data"])
+                        
+                        # Check for pagination
+                        pagination = data.get("pagination", {})
+                        if not pagination.get("hasMore", False):
+                            break
+                        page_token = pagination.get("nextPageToken")
+                        
+                        if not page_token:
+                            break
+                    elif "tasks" in data:
+                        all_tasks.extend(data["tasks"])
+                        break
+                    else:
+                        break
+            
+            self.logger.info(f"Fetched {len(all_tasks)} tasks for project {project_id}")
+            return all_tasks
+            
+        except httpx.HTTPError as e:
+            self.logger.error(f"HTTP error fetching tasks for project {project_id}: {e}")
+            raise
+        except Exception as e:
+            self.logger.error(f"Unexpected error fetching tasks for project {project_id}: {e}")
+            raise
+    
+    async def create_time_entry_v2(
+        self,
+        date: str,
+        minutes: int,
+        task_id: str | None = None,
+        project_id: str | None = None,
+        activity_name: str | None = None,
+        notes: str = "",
+        billable: bool = True,
+        category_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a time entry following Rocketlane API v1.0 specification.
+        
+        Requires `date`, `minutes`, and both `project` and `task` for proper time tracking.
+        """
+        if not settings.rocketlane_user_id:
+            raise ValueError("User ID must be configured for creating time entries")
+        
+        # Build payload according to API spec
+        payload = {
+            "date": date,
+            "minutes": minutes,
+            "billable": billable,
+        }
+        
+        # Rocketlane requires both project AND task for time entries
+        if task_id and project_id:
+            payload["task"] = {"taskId": task_id}
+            payload["project"] = {"projectId": project_id}
+        elif activity_name:
+            # For ad-hoc activities without specific task
+            payload["activityName"] = activity_name
+            if project_id:
+                payload["project"] = {"projectId": project_id}
+        else:
+            raise ValueError("Both task_id and project_id must be provided, or use activity_name for ad-hoc entries")
+        
+        # Add optional fields
+        if notes:
+            payload["notes"] = notes
+        
+        if category_id:
+            payload["category"] = {"categoryId": category_id}
+        
+        # Add user ID (required since our API key is global, not user-scoped)
+        payload["user"] = {"userId": int(settings.rocketlane_user_id)}
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                url = f"{self.base_url}/time-entries"
+                log_request_details(self.logger, "POST", url, self.headers, payload)
+                self.logger.info(f"Creating time entry with payload: {json.dumps(payload, indent=2)}")
+                
+                attempt = 0
+                while attempt <= self.max_retries:
+                    response = await client.post(url, headers=self.headers, json=payload)
+                    
+                    # Handle rate limiting
+                    if await self._handle_rate_limiting(response, attempt):
+                        attempt += 1
+                        continue
+                    
+                    break
+                
+                log_response_details(self.logger, response.status_code, response.text[:500] if response.text else "")
+                if response.status_code == 400:
+                    self.logger.error(f"400 Bad Request. Response body: {response.text}")
+                response.raise_for_status()
+                return response.json()
+                
+        except httpx.HTTPError as e:
+            self.logger.error(f"HTTP error creating time entry: {e}")
+            raise
+        except Exception as e:
+            self.logger.error(f"Unexpected error creating time entry: {e}")
             raise

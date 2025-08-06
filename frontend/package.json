@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:upload-sourcemaps": "npm run build && ./upload-sourcemaps.sh",
+    "upload-sourcemaps": "./upload-sourcemaps.sh",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives",
     "lint:fix": "eslint . --ext ts,tsx --report-unused-disable-directives --fix",
     "preview": "vite preview"
@@ -21,11 +23,15 @@
     "date-fns": "^3.6.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^6.26.1",
     "react-window": "^1.8.10",
+    "remark-gfm": "^4.0.1",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@grafana/faro-cli": "^0.4.1",
+    "@grafana/faro-rollup-plugin": "^0.5.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/react-window": "^1.8.8",

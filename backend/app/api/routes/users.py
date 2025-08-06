@@ -1,76 +1,120 @@
 from typing import Any
 
-import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
-from ...services.rocketlane import RocketlaneClient
+from ...core.logging import get_logger
+from ...services.user_cache import UserCacheService
 
 router = APIRouter(prefix="/users", tags=["users"])
+logger = get_logger(__name__)
+
+# Initialize cache service
+user_cache = UserCacheService()
 
 
 @router.get("/", response_model=list[dict[str, Any]])
-async def get_users():
-    """Get all available users from Rocketlane with pagination support"""
+async def get_users(
+    force_refresh: bool = Query(False, description="Force refresh from API")
+):
+    """Get all available users from cache or Rocketlane API with pagination support"""
     try:
-        client = RocketlaneClient()
-        all_users = []
-        page_token = None
+        logger.info(f"Fetching users (force_refresh={force_refresh})")
+        
+        # Get users from cache or API
+        users = await user_cache.get_all_users(force_refresh=force_refresh)
+        
+        # Transform and sort user data
+        formatted_users = [
+            {
+                "userId": user.get("userId"),
+                "emailId": user.get("email")
+                or user.get("emailId"),  # Handle both 'email' and 'emailId'
+                "firstName": user.get("firstName", ""),
+                "lastName": user.get("lastName", ""),
+                "fullName": f"{user.get('firstName', '')} {user.get('lastName', '')}".strip()
+                or user.get("email", "").split("@")[0],
+            }
+            for user in users
+            if user.get("userId") and (user.get("email") or user.get("emailId"))
+        ]
 
-        async with httpx.AsyncClient() as http_client:
-            # Keep fetching until we have all users
-            while True:
-                params = {"pageSize": 100}
-                if page_token:
-                    params["pageToken"] = page_token
+        # Sort users alphabetically by full name
+        formatted_users.sort(key=lambda u: u["fullName"].lower())
+        
+        logger.info(f"Successfully formatted {len(formatted_users)} users")
+        return formatted_users
 
-                response = await http_client.get(
-                    f"{client.base_url}/users",
-                    headers=client.headers,
-                    params=params,
-                )
-                response.raise_for_status()
-                data = response.json()
-
-                # Extract user information
-                users = []
-                if isinstance(data, list):
-                    users = data
-                elif isinstance(data, dict) and "data" in data:
-                    users = data["data"]
-                elif isinstance(data, dict) and "users" in data:
-                    users = data["users"]
-
-                all_users.extend(users)
-
-                # Check if there are more pages
-                pagination = data.get("pagination", {})
-                if not pagination.get("hasMore", False):
-                    break
-                page_token = pagination.get("nextPageToken")
-                if not page_token:
-                    break
-
-            # Transform and sort user data
-            formatted_users = [
-                {
-                    "userId": user.get("userId"),
-                    "emailId": user.get("email")
-                    or user.get("emailId"),  # Handle both 'email' and 'emailId'
-                    "firstName": user.get("firstName", ""),
-                    "lastName": user.get("lastName", ""),
-                    "fullName": f"{user.get('firstName', '')} {user.get('lastName', '')}".strip()
-                    or user.get("email", "").split("@")[0],
-                }
-                for user in all_users
-                if user.get("userId") and (user.get("email") or user.get("emailId"))
-            ]
-
-            # Sort users alphabetically by full name
-            formatted_users.sort(key=lambda u: u["fullName"].lower())
-
-            return formatted_users
-
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch users from Rocketlane: {e!s}")
+    except ValueError as e:
+        logger.error(f"Configuration error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error fetching users: {e}", exc_info=True)
+        
+        # Try to serve from stale cache if available
+        try:
+            users = await user_cache.get_all_users(force_refresh=False)
+            if users:
+                # Transform and sort user data
+                formatted_users = [
+                    {
+                        "userId": user.get("userId"),
+                        "emailId": user.get("email")
+                        or user.get("emailId"),
+                        "firstName": user.get("firstName", ""),
+                        "lastName": user.get("lastName", ""),
+                        "fullName": f"{user.get('firstName', '')} {user.get('lastName', '')}".strip()
+                        or user.get("email", "").split("@")[0],
+                    }
+                    for user in users
+                    if user.get("userId") and (user.get("email") or user.get("emailId"))
+                ]
+                formatted_users.sort(key=lambda u: u["fullName"].lower())
+                
+                logger.warning(f"Serving {len(formatted_users)} users from cache due to API error")
+                return formatted_users
+        except:
+            pass
+        
+        raise HTTPException(status_code=502, detail="Unable to fetch users. Please try again later.")
+
+
+@router.get("/cache/stats")
+async def get_cache_stats():
+    """Get user cache statistics"""
+    try:
+        stats = await user_cache.get_stats()
+        return stats
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cache/refresh")
+async def refresh_user_cache():
+    """Force refresh of the user cache"""
+    try:
+        logger.info("Force refreshing user cache")
+        users = await user_cache.get_all_users(force_refresh=True)
+        
+        return {
+            "status": "success",
+            "message": f"Cache refreshed with {len(users)} users",
+            "users_cached": len(users),
+        }
+    except Exception as e:
+        logger.error(f"Error refreshing cache: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/cache")
+async def invalidate_cache():
+    """Invalidate the entire user cache"""
+    try:
+        await user_cache.invalidate()
+        return {
+            "status": "success",
+            "message": "User cache invalidated"
+        }
+    except Exception as e:
+        logger.error(f"Error invalidating cache: {e}")
         raise HTTPException(status_code=500, detail=str(e))

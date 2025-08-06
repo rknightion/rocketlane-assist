@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import AsyncGenerator
 
 
 class BaseLLMProvider(ABC):
@@ -27,4 +28,15 @@ class BaseLLMProvider(ABC):
         max_tokens: int | None = None,
     ) -> str:
         """Generate a chat completion from the LLM"""
+        pass
+
+    @abstractmethod
+    async def stream_completion(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """Stream a completion from the LLM"""
         pass

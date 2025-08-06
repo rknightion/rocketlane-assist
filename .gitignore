@@ -230,3 +230,4 @@ Thumbs.db
 config/project_cache.json
 
 .swp
+config/*

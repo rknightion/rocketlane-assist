@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, NavLink } from 'react-router-dom';
 import { FaroErrorBoundary } from '@grafana/faro-react';
+import Home from './pages/Home';
 import ProjectList from './pages/ProjectList';
 import ProjectDetail from './pages/ProjectDetail';
+import Timesheets from './pages/Timesheets';
 import Settings from './pages/Settings';
 import OnboardingWizard from './components/OnboardingWizard';
 import { configApi } from './services/api';
@@ -64,8 +66,18 @@ function App() {
             <header className="app-header">
               <h1>Rocketlane Assist</h1>
               <nav>
-                <Link to="/">Projects</Link>
-                <Link to="/settings">Settings</Link>
+                <NavLink to="/" end className={({ isActive }) => isActive ? 'active' : ''}>
+                  Home
+                </NavLink>
+                <NavLink to="/projects" className={({ isActive }) => isActive ? 'active' : ''}>
+                  Projects
+                </NavLink>
+                <NavLink to="/timesheets" className={({ isActive }) => isActive ? 'active' : ''}>
+                  Timesheets
+                </NavLink>
+                <NavLink to="/settings" className={({ isActive }) => isActive ? 'active' : ''}>
+                  Settings
+                </NavLink>
               </nav>
             </header>
 
@@ -99,8 +111,10 @@ function App() {
 
             <main className="app-main">
               <Routes>
-                <Route path="/" element={<ProjectList />} />
+                <Route path="/" element={<Home />} />
+                <Route path="/projects" element={<ProjectList />} />
                 <Route path="/projects/:projectId" element={<ProjectDetail />} />
+                <Route path="/timesheets" element={<Timesheets />} />
                 <Route path="/settings" element={<Settings onConfigUpdate={checkConfiguration} />} />
               </Routes>
             </main>
