@@ -107,43 +107,76 @@ class RocketlaneClient:
         """Get tasks, optionally filtered by project, status, and assigned user"""
         params: dict[str, Any] = {"pageSize": limit}
 
-        # Build filters for search API
-        filters = []
+        # Build filters for search API - apply each filter as a separate parameter
+        # The Rocketlane API seems to have issues with multiple filters in a single parameter
+        # Let's try using separate filter parameters or only essential filters
         if project_id:
-            filters.append(f"project.eq={project_id}")
-        if status:
-            # Status can be: "todo", "in_progress", "completed", etc.
-            # Map common status strings to numeric values based on event payload examples
-            status_map = {
-                "todo": 1,
-                "to_do": 1,
-                "not_done": 1,
-                "in_progress": 2,
-                "completed": 3,
-                "done": 3,
-            }
-            status_value = status_map.get(status.lower(), status)
-            filters.append(f"status.eq={status_value}")
-        if user_id:
-            filters.append(f"assignees.cn={user_id}")
+            params["filters"] = f"project.eq={project_id}"
+            # If we have a project filter, that's usually the most important one
+            # We can add additional filtering on the client side if needed
+        elif user_id:
+            # If no project but we have a user, filter by user
+            params["filters"] = f"assignees.cn={user_id}"
+        
+        # Note: Status filtering seems to cause issues when combined with other filters
+        # We'll handle status filtering in the response if needed
 
-        if filters:
-            params["filters"] = ",".join(filters)
+        url = f"{self.base_url}/tasks"
+        log_request_details(self.logger, "GET", url, self.headers, params)
 
         async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.base_url}/tasks", headers=self.headers, params=params
-            )
+            response = await client.get(url, headers=self.headers, params=params)
+            
+            log_response_details(self.logger, response.status_code, response.text[:500] if response.text else "")
+            
             response.raise_for_status()
             data = response.json()
-            # Handle different response structures
+            
+            # Extract tasks from response
+            tasks = []
             if isinstance(data, list):
-                return data
+                tasks = data
             elif "data" in data:
-                return data["data"]
+                tasks = data["data"]
             elif "tasks" in data:
-                return data["tasks"]
-            return []
+                tasks = data["tasks"]
+            
+            # Apply status filtering on the response if needed
+            if status and tasks:
+                status_map = {
+                    "todo": 1,
+                    "to_do": 1,
+                    "not_done": 1,
+                    "in_progress": 2,
+                    "completed": 3,
+                    "done": 3,
+                }
+                status_value = status_map.get(status.lower(), status)
+                
+                # Filter tasks by status value
+                filtered_tasks = []
+                for task in tasks:
+                    task_status = task.get("status")
+                    if task_status:
+                        # Check if status is a dict with value or direct value
+                        if isinstance(task_status, dict):
+                            if task_status.get("value") == status_value:
+                                filtered_tasks.append(task)
+                        elif task_status == status_value:
+                            filtered_tasks.append(task)
+                return filtered_tasks
+            
+            # Apply user filtering on the response if needed (when project_id is also specified)
+            if user_id and project_id and tasks:
+                filtered_tasks = []
+                for task in tasks:
+                    assignees = task.get("assignees", [])
+                    # Check if user is in assignees list
+                    if any(str(assignee.get("userId")) == str(user_id) for assignee in assignees if isinstance(assignee, dict)):
+                        filtered_tasks.append(task)
+                return filtered_tasks
+            
+            return tasks
 
     async def get_task(self, task_id: str) -> dict[str, Any]:
         """Get details of a specific task"""
@@ -156,6 +189,7 @@ class RocketlaneClient:
         self, project_id: str, status: str | None = None, user_id: str | None = None
     ) -> list[dict[str, Any]]:
         """Get all tasks for a specific project"""
+        self.logger.info(f"Getting tasks for project {project_id}, status={status}, user_id={user_id}")
         return await self.get_tasks(project_id=project_id, status=status, user_id=user_id)
 
     async def create_time_entry(

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { projectsApi, Project, Task, TaskSummary } from '../services/api';
 import { trackEvent, measurePerformance } from '../lib/observability';
@@ -13,13 +13,7 @@ function ProjectDetail() {
   const [summarizing, setSummarizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (projectId) {
-      loadProjectData();
-    }
-  }, [projectId]);
-
-  const loadProjectData = async () => {
+  const loadProjectData = useCallback(async () => {
     const startTime = Date.now();
     try {
       setLoading(true);
@@ -29,79 +23,85 @@ function ProjectDetail() {
       ]);
       setProject(projectData);
       setTasks(tasksData);
-      
+
       // Track successful project load
       trackEvent('project_loaded', {
         projectId: projectId!,
         taskCount: tasksData.length,
-        projectName: projectData.name
+        projectName: projectData.projectName
       });
-      
+
       // Measure performance
       measurePerformance('project_load_time', Date.now() - startTime, {
         projectId: projectId!
       });
-    } catch (err: any) {
+    } catch (err) {
       // Check if it's a user ID configuration error
-      if (err.response?.status === 403 && err.response?.data?.detail?.includes('User ID not configured')) {
+      const error = err as { response?: { status?: number; data?: { detail?: string } } };
+      if (error.response?.status === 403 && error.response?.data?.detail?.includes('User ID not configured')) {
         setError('Please select your user account in Settings to view project details.');
       } else {
         setError('Failed to load project details.');
       }
-      console.error('Error loading project:', err);
-      
+
       // Track error
       trackEvent('project_load_error', {
         projectId: projectId!,
-        error: err.message,
-        statusCode: err.response?.status
+        error: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: (error as { response?: { status?: number } }).response?.status
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (projectId) {
+      loadProjectData();
+    }
+  }, [projectId, loadProjectData]);
 
   const handleSummarize = async () => {
     const startTime = Date.now();
     try {
       setSummarizing(true);
-      
+
       // Track summarization attempt
       trackEvent('summarization_started', {
         projectId: projectId!,
-        projectName: project?.name,
+        projectName: project?.projectName,
         taskCount: tasks.length
       });
-      
+
       const summaryData = await projectsApi.summarizeProjectTasks(projectId!);
       setSummary(summaryData);
-      
+
       // Track successful summarization
       trackEvent('summarization_completed', {
         projectId: projectId!,
-        projectName: project?.name,
+        projectName: project?.projectName,
         summaryLength: summaryData.summary.length
       });
-      
+
       // Measure performance
       measurePerformance('summarization_time', Date.now() - startTime, {
         projectId: projectId!,
         taskCount: tasks.length
       });
-    } catch (err: any) {
+    } catch (err) {
       // Check if it's a user ID configuration error
-      if (err.response?.status === 403 && err.response?.data?.detail?.includes('User ID not configured')) {
+      const error = err as { response?: { status?: number; data?: { detail?: string } } };
+      if (error.response?.status === 403 && error.response?.data?.detail?.includes('User ID not configured')) {
         setError('Please select your user account in Settings to generate summaries.');
       } else {
         setError('Failed to generate summary.');
       }
-      console.error('Error summarizing tasks:', err);
-      
+
       // Track error
       trackEvent('summarization_error', {
         projectId: projectId!,
-        error: err.message,
-        statusCode: err.response?.status
+        error: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: (error as { response?: { status?: number } }).response?.status
       });
     } finally {
       setSummarizing(false);

@@ -126,7 +126,7 @@ export const configApi = {
     anthropic_api_key?: string;
     rocketlane_api_key?: string;
     rocketlane_user_id?: string;
-  }): Promise<any> => {
+  }): Promise<Config> => {
     const response = await api.put('/config/', config);
     return response.data;
   },

@@ -18,7 +18,7 @@ function App() {
   useEffect(() => {
     // Initialize observability
     initializeObservability();
-    
+
     checkConfiguration();
   }, []);
 

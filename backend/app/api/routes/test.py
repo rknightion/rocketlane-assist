@@ -47,7 +47,7 @@ async def test_llm_connection():
             raise HTTPException(status_code=400, detail="Anthropic API key not configured")
 
         # Get LLM provider and test with a simple prompt
-        llm = get_llm_provider(settings)
+        llm = get_llm_provider()
         test_prompt = "Respond with 'OK' if you can read this."
 
         response = await llm.generate_completion(test_prompt)

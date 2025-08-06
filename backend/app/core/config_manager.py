@@ -91,8 +91,9 @@ class ConfigManager:
         try:
             # Test write permissions first
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.config_path, "w") as f:
-                json.dump(self._config.model_dump(), f, indent=2)
+            if self._config:
+                with open(self.config_path, "w") as f:
+                    json.dump(self._config.model_dump(), f, indent=2)
         except (OSError, PermissionError) as e:
             print(f"Warning: Cannot save config to {self.config_path}: {e}")
             print("Configuration changes are stored in memory only")
@@ -104,6 +105,7 @@ class ConfigManager:
         """Get current configuration"""
         if self._config is None:
             self._load_config()
+        assert self._config is not None  # After _load_config, _config is always set
         return self._config
 
     def update_config(self, updates: dict[str, Any]) -> AppConfig:
@@ -112,18 +114,21 @@ class ConfigManager:
             self._load_config()
 
         # Update only provided fields
-        config_dict = self._config.model_dump()
-        config_dict.update(updates)
-        self._config = AppConfig(**config_dict)
+        if self._config:
+            config_dict = self._config.model_dump()
+            config_dict.update(updates)
+            self._config = AppConfig(**config_dict)
 
         # Save to file
         self._save_config()
 
+        assert self._config is not None  # After update, _config is always set
         return self._config
 
     def reload_config(self) -> AppConfig:
         """Reload configuration from file"""
         self._load_config()
+        assert self._config is not None  # After _load_config, _config is always set
         return self._config
 
 

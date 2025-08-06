@@ -29,6 +29,7 @@ def instrument_app(app: FastAPI) -> None:
         # Enable OTEL debug logging when DEBUG_MODE is enabled
         if os.getenv("DEBUG_MODE", "false").lower() == "true":
             import logging as py_logging
+
             # Set OTEL exporter logging to DEBUG to see export errors
             otel_logger = py_logging.getLogger("opentelemetry.exporter.otlp")
             otel_logger.setLevel(py_logging.DEBUG)

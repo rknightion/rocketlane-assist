@@ -36,13 +36,13 @@ def configure_otel():
         if endpoint:
             # For HTTP protocol, we need to append the specific signal path
             protocol = os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
-            
+
             if protocol == "http/protobuf" and not endpoint.endswith("/v1/traces"):
                 # Set the traces-specific endpoint for HTTP
                 traces_endpoint = endpoint.rstrip("/") + "/v1/traces"
                 os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = traces_endpoint
                 logger.info(f"Set OTLP traces endpoint: {traces_endpoint}")
-            
+
             # The OTLPSpanExporter will read environment variables automatically
             # including OTEL_EXPORTER_OTLP_HEADERS and OTEL_EXPORTER_OTLP_PROTOCOL
             exporter = OTLPSpanExporter()

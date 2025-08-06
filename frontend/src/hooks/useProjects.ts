@@ -143,7 +143,7 @@ export function useProjects(initialFilters?: ProjectFilters): UseProjectsReturn 
   // Initial fetch
   useEffect(() => {
     fetchProjects();
-  }, [filters]);
+  }, [filters, fetchProjects]);
 
   // Cleanup
   useEffect(() => {

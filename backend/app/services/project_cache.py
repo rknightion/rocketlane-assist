@@ -55,13 +55,20 @@ class ProjectCacheService:
 
     def update_project_cache(self, projects: list[dict[str, Any]]) -> None:
         """Update the project cache with membership data"""
-        cache_data = {"projects": {}, "last_updated": datetime.now().isoformat()}
+        cache_data: dict[str, Any] = {
+            "projects": {},
+            "last_updated": datetime.now().isoformat(),
+        }
 
         for project in projects:
             project_id = str(project.get("projectId"))
 
             # Extract all types of members from the project
-            members = {"team_members": [], "solution_architects": [], "all_members": []}
+            members: dict[str, list[str]] = {
+                "team_members": [],
+                "solution_architects": [],
+                "all_members": [],
+            }
 
             # Team members
             team_members = project.get("teamMembers", {}).get("members", [])
@@ -83,9 +90,10 @@ class ProjectCacheService:
                             if user_id not in members["all_members"]:
                                 members["all_members"].append(user_id)
                     elif isinstance(sa, int):
-                        members["solution_architects"].append(sa)
-                        if sa not in members["all_members"]:
-                            members["all_members"].append(sa)
+                        sa_str = str(sa)
+                        members["solution_architects"].append(sa_str)
+                        if sa_str not in members["all_members"]:
+                            members["all_members"].append(sa_str)
 
             # Check for solutionArchitect field (singular)
             solution_architect = project.get("solutionArchitect")
@@ -97,10 +105,11 @@ class ProjectCacheService:
                         if user_id not in members["all_members"]:
                             members["all_members"].append(user_id)
                 elif isinstance(solution_architect, int):
-                    if solution_architect not in members["solution_architects"]:
-                        members["solution_architects"].append(solution_architect)
-                        if solution_architect not in members["all_members"]:
-                            members["all_members"].append(solution_architect)
+                    sa_str = str(solution_architect)
+                    if sa_str not in members["solution_architects"]:
+                        members["solution_architects"].append(sa_str)
+                        if sa_str not in members["all_members"]:
+                            members["all_members"].append(sa_str)
 
             # Check for other possible member fields
             # Project owner
@@ -110,8 +119,10 @@ class ProjectCacheService:
                     user_id = owner.get("userId")
                     if user_id and user_id not in members["all_members"]:
                         members["all_members"].append(user_id)
-                elif isinstance(owner, int) and owner not in members["all_members"]:
-                    members["all_members"].append(owner)
+                elif isinstance(owner, int):
+                    owner_str = str(owner)
+                    if owner_str not in members["all_members"]:
+                        members["all_members"].append(owner_str)
 
             # Created by
             created_by = project.get("createdBy")
@@ -120,8 +131,10 @@ class ProjectCacheService:
                     user_id = created_by.get("userId")
                     if user_id and user_id not in members["all_members"]:
                         members["all_members"].append(user_id)
-                elif isinstance(created_by, int) and created_by not in members["all_members"]:
-                    members["all_members"].append(created_by)
+                elif isinstance(created_by, int):
+                    created_by_str = str(created_by)
+                    if created_by_str not in members["all_members"]:
+                        members["all_members"].append(created_by_str)
 
             cache_data["projects"][project_id] = members
 

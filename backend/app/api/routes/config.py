@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -37,7 +37,7 @@ async def update_config(config: ConfigUpdate):
     """Update configuration dynamically without restart"""
     try:
         # Build update dict with only non-None values
-        updates = {}
+        updates: dict[str, Any] = {}
 
         # Always update these fields
         updates["llm_provider"] = config.llm_provider

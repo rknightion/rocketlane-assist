@@ -67,12 +67,23 @@ async def get_project_tasks(
 ):
     """Get tasks for a specific project"""
     try:
+        logger.info(f"Fetching tasks for project {project_id} with status filter: {status}")
         client = RocketlaneClient()
         # Use the configured user ID to filter tasks
         user_id = settings.rocketlane_user_id if settings.rocketlane_user_id else None
+        if user_id:
+            logger.info(f"Filtering tasks for user ID: {user_id}")
         tasks = await client.get_project_tasks(project_id, status, user_id)
+        logger.info(f"Retrieved {len(tasks)} tasks for project {project_id}")
         return tasks
     except Exception as e:
+        logger.error(f"Error fetching tasks for project {project_id}: {e}", exc_info=True)
+        # Provide more specific error message
+        if "500" in str(e):
+            raise HTTPException(
+                status_code=502,
+                detail="Unable to fetch tasks from Rocketlane API. The service may be experiencing issues."
+            )
         raise HTTPException(status_code=500, detail=str(e))
 
 
