@@ -1,40 +1,30 @@
-# Backend Development
+# Backend - FastAPI Python
 
-## Backend-Specific Commands
-
+## Package Management
 ```bash
-# uv Package Management
-uv add package-name                    # Add runtime dependency
-uv add --dev package-name              # Add development dependency
-uv remove package-name                 # Remove dependency
-uv tree                               # Show dependency tree
-uv sync                               # Install/sync all dependencies
-
-# Development Server Options
-uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8001  # Alternative port
-uv run uvicorn app.main:app --reload --log-level debug             # Debug logging
-
-# Code Quality Tools
-uv run ruff check . --fix             # Auto-fix linting issues
-uv run ruff format .                  # Format all Python code
-uv run mypy .                         # Type checking
-uv run pytest -v                     # Verbose test output
-uv run pytest --cov=app              # Test coverage report
+uv add package-name                    # Add dependency
+uv add --dev package-name              # Add dev dependency  
+uv sync                               # Install/sync all
+uv tree                               # Show tree
 ```
 
-## Python/FastAPI Code Patterns
+## Development
+```bash
+uv run uvicorn app.main:app --reload --port 8001    # Alt port
+uv run uvicorn app.main:app --reload --log-level debug  # Debug
+uv run ruff check . --fix && uv run ruff format .   # Format
+uv run mypy . && uv run pytest -v                   # Check & test
+```
 
-**Strict Style Requirements:**
-- **Double quotes** for strings (ruff configured)
-- **100 character line limit**
-- **Type hints** mandatory for all functions
-- **async/await** for all I/O operations
-- **Pydantic models** for data validation
+## FastAPI Patterns
+**Required:**
+- Double quotes, 100 char limit
+- Type hints, async/await for I/O
+- Pydantic models for validation
 
-### FastAPI Endpoint Pattern
 ```python
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from typing import List
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 class TaskResponse(BaseModel):
@@ -42,78 +32,36 @@ class TaskResponse(BaseModel):
     title: str
     status: str
 
-router = APIRouter()
-
 @router.get("/tasks", response_model=List[TaskResponse])
 async def get_tasks(project_id: str) -> List[TaskResponse]:
-    """Get all tasks for a project."""
+    """Get tasks for project."""
     try:
-        # Business logic here
-        return tasks
+        return await service.get_tasks(project_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 ```
 
-## Backend-Specific Testing
-
+## Testing
 ```bash
-# Run specific test files
-uv run pytest tests/test_api.py
-uv run pytest tests/test_services.py -v
-
-# Test with coverage
-uv run pytest --cov=app --cov-report=html
-
-# Test async functions
-uv run pytest -k "async" --asyncio-mode=auto
+uv run pytest tests/test_api.py -v           # Specific tests
+uv run pytest --cov=app --cov-report=html   # Coverage
+uv run pytest -k "async" --asyncio-mode=auto # Async tests
 ```
 
-### Test Pattern for Services
 ```python
-import pytest
-from unittest.mock import AsyncMock, patch
-from app.services.example_service import ExampleService
-
 @pytest.mark.asyncio
-async def test_service_method():
-    with patch('httpx.AsyncClient') as mock_client:
+async def test_service():
+    with patch('httpx.AsyncClient') as mock:
         mock_response = AsyncMock()
         mock_response.json.return_value = {"id": "123"}
-        mock_client.return_value.get.return_value = mock_response
-
-        service = ExampleService()
+        mock.return_value.get.return_value = mock_response
+        
         result = await service.get_data("123")
         assert result["id"] == "123"
 ```
 
-## Python-Specific Patterns
-
-### Async Context Managers
-```python
-class ServiceClient:
-    async def __aenter__(self):
-        self.client = httpx.AsyncClient()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.client.aclose()
-
-# Usage
-async with ServiceClient() as client:
-    data = await client.get_data()
-```
-
-### Error Handling
-```python
-from fastapi import HTTPException
-
-def handle_service_error(func):
-    async def wrapper(*args, **kwargs):
-        try:
-            return await func(*args, **kwargs)
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"External service error: {e}")
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-    return wrapper
-```
+## Project-Specific Rules
+- **User filtering required** - all task endpoints must filter by `assignees.cn={user_id}`
+- **Dependency injection** - use typed dependencies from `app.api.dependencies`
+- **LLM providers** - access via `get_llm_provider(settings)` factory
+- **Error handling** - use HTTPException with proper status codes
