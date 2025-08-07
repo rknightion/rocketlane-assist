@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Any, AsyncGenerator, cast
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING, Any, cast
 
 from anthropic import NOT_GIVEN, AsyncAnthropic
 
@@ -64,18 +65,18 @@ class AnthropicProvider(BaseLLMProvider):
         # Extract text from the response content
         content = response.content[0]
         return getattr(content, "text", "") if hasattr(content, "text") else str(content)
-    
+
     async def stream_completion(
         self,
         prompt: str,
         system_prompt: str | None = None,
         temperature: float = 0.7,
         max_tokens: int | None = None,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[str]:
         """Stream a completion from Anthropic"""
         messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
         typed_messages = cast("list[MessageParam]", messages)
-        
+
         async with self.client.messages.stream(
             model=self.model,
             messages=typed_messages,

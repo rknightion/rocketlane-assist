@@ -1,6 +1,6 @@
 import asyncio
-from typing import Any
 import json
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -27,7 +27,7 @@ async def get_projects(
     """Get all projects from cache or Rocketlane API, filtered by user membership if configured"""
     try:
         logger.info(f"Fetching projects (force_refresh={force_refresh})")
-        
+
         # Get projects from cache or API
         if settings.rocketlane_user_id:
             # If user is configured, get filtered projects
@@ -38,9 +38,9 @@ async def get_projects(
             # Get all projects
             projects = await project_cache.get_all_projects(force_refresh=force_refresh)
             logger.info(f"Returning all {len(projects)} projects")
-        
+
         return projects
-        
+
     except ValueError as e:
         logger.error(f"Configuration error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -53,13 +53,13 @@ async def get_projects(
                 projects = await project_cache.get_user_projects(user_id, force_refresh=False)
             else:
                 projects = await project_cache.get_all_projects(force_refresh=False)
-            
+
             if projects:
                 logger.warning(f"Serving {len(projects)} projects from cache due to API error")
                 return projects
         except:
             pass
-        
+
         raise HTTPException(status_code=502, detail="Unable to fetch projects. Please try again later.")
 
 
@@ -72,22 +72,22 @@ async def get_project(
     """Get a specific project from cache or API"""
     try:
         logger.info(f"Fetching project {project_id} (force_refresh={force_refresh})")
-        
+
         # Try to get from cache first
         project = await project_cache.get_project_details(project_id, force_refresh=force_refresh)
-        
+
         if project:
             return project
-        
+
         # If not in cache, fetch directly
         logger.info(f"Project {project_id} not in cache, fetching from API")
         client = RocketlaneClient()
         project = await client.get_project(project_id)
-        
+
         # Add to cache for next time (trigger background refresh of all projects)
         if project:
             asyncio.create_task(project_cache.get_all_projects(force_refresh=True))
-        
+
         return project
     except Exception as e:
         logger.error(f"Error fetching project {project_id}: {e}")
@@ -140,19 +140,19 @@ async def summarize_project_tasks_stream(
     """Stream summarization of outstanding tasks for a project"""
     try:
         service = SummarizationService()
-        
+
         async def generate():
             # Send initial metadata
             metadata = await service.get_project_metadata(project_id)
             yield f"data: {json.dumps({'type': 'metadata', 'data': metadata})}\n\n"
-            
+
             # Stream the summary
             async for chunk in service.summarize_project_tasks_stream(project_id):
                 yield f"data: {json.dumps({'type': 'chunk', 'data': chunk})}\n\n"
-            
+
             # Send completion signal
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
-        
+
         return StreamingResponse(
             generate(),
             media_type="text/event-stream",
@@ -173,7 +173,7 @@ async def refresh_project_cache(_: None = Depends(verify_api_keys)):
     try:
         logger.info("Force refreshing project cache")
         projects = await project_cache.get_all_projects(force_refresh=True)
-        
+
         return {
             "status": "success",
             "message": f"Cache refreshed with {len(projects)} projects",

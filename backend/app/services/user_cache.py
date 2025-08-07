@@ -3,41 +3,40 @@ User caching service with retry logic and resilient fetching.
 """
 
 import asyncio
-from typing import Any, Optional
+from typing import Any
+
 import httpx
 
 from ..core.cache import BaseCache, CacheConfig
-from ..core.config import settings
-from ..core.logging import get_logger
 from .rocketlane import RocketlaneClient
 
 
 class UserCacheService(BaseCache[list[dict[str, Any]]]):
     """Cache service for Rocketlane users"""
-    
+
     def __init__(self):
-        # Configure cache with longer TTL for users (2 hours - users change less frequently)
+        # Configure cache with longer TTL for users (1 day - users change very rarely)
         config = CacheConfig(
             cache_dir="/app/config/cache",  # Use absolute path in container
-            default_ttl=7200,  # 2 hours
+            default_ttl=86400,  # 1 day
             stale_fallback=True,
             enable_background_refresh=True
         )
         super().__init__(config, "users")
         self.client = None
         self.fetch_timeout = 15.0  # Timeout for user fetches
-        
+
     def _get_client(self) -> RocketlaneClient:
         """Get or create Rocketlane client"""
         if not self.client:
             self.client = RocketlaneClient()
         return self.client
-    
+
     async def _fetch_users_with_retry(self) -> list[dict[str, Any]]:
         """Fetch all users with retry logic"""
         max_retries = 3
         retry_delay = 2.0
-        
+
         for attempt in range(max_retries):
             try:
                 return await self._fetch_users_impl()
@@ -52,25 +51,25 @@ class UserCacheService(BaseCache[list[dict[str, Any]]]):
             except Exception as e:
                 self.logger.error(f"Unexpected error fetching users: {e}")
                 raise
-    
+
     async def _fetch_users_impl(self) -> list[dict[str, Any]]:
         """Implementation of user fetching logic"""
         client = self._get_client()
-        
+
         # Create a custom httpx client with timeout
         async with httpx.AsyncClient(timeout=httpx.Timeout(self.fetch_timeout)) as http_client:
             try:
                 params = {"pageSize": 200}  # Users are typically fewer than projects
                 url = f"{client.base_url}/users"
-                
+
                 self.logger.info("Fetching users from Rocketlane API")
-                
+
                 response = await http_client.get(
                     url,
                     headers=client.headers,
                     params=params
                 )
-                
+
                 # Check for specific error conditions
                 if response.status_code == 401:
                     raise ValueError("Invalid Rocketlane API key")
@@ -82,10 +81,10 @@ class UserCacheService(BaseCache[list[dict[str, Any]]]):
                     self.logger.warning(f"Rate limited, waiting {retry_after} seconds")
                     await asyncio.sleep(retry_after)
                     raise httpx.NetworkError("Rate limited")
-                
+
                 response.raise_for_status()
                 data = response.json()
-                
+
                 # Handle different response structures
                 if isinstance(data, list):
                     users = data
@@ -95,17 +94,17 @@ class UserCacheService(BaseCache[list[dict[str, Any]]]):
                     users = data["users"]
                 else:
                     users = []
-                
+
                 self.logger.info(f"Successfully fetched {len(users)} users")
                 return users
-                
+
             except httpx.TimeoutException as e:
                 self.logger.error(f"Timeout fetching users: {e}")
                 raise
             except Exception as e:
                 self.logger.error(f"Error fetching users: {e}")
                 raise
-    
+
     async def get_all_users(self, force_refresh: bool = False) -> list[dict[str, Any]]:
         """Get all users from cache or API"""
         return await self.get(
@@ -113,42 +112,50 @@ class UserCacheService(BaseCache[list[dict[str, Any]]]):
             fetch_func=self._fetch_users_with_retry,
             force_refresh=force_refresh
         ) or []
-    
+
     async def get_user_by_id(
         self,
         user_id: int,
         force_refresh: bool = False
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get a specific user by ID"""
         users = await self.get_all_users(force_refresh)
         for user in users:
             if user.get("userId") == user_id:
                 return user
         return None
-    
+
     async def get_user_by_email(
         self,
         email: str,
         force_refresh: bool = False
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get a specific user by email"""
         users = await self.get_all_users(force_refresh)
         for user in users:
             if user.get("emailId", "").lower() == email.lower():
                 return user
         return None
-    
+
     async def warm_cache(self):
-        """Pre-warm the cache with user data"""
+        """Pre-warm the cache with user data (if not already cached)"""
         try:
-            self.logger.info("Warming user cache...")
+            self.logger.info("Checking user cache...")
+            # First try to get from existing cache
+            users = await self.get_all_users(force_refresh=False)
+            if users:
+                self.logger.info(f"User cache already warm with {len(users)} users")
+                return True
+            
+            # Only fetch if cache is empty or expired
+            self.logger.info("Warming user cache with fresh data...")
             users = await self.get_all_users(force_refresh=True)
             self.logger.info(f"Cache warmed with {len(users)} users")
             return True
         except Exception as e:
             self.logger.error(f"Failed to warm user cache: {e}")
             return False
-    
+
     async def refresh_cache_periodically(self, interval: int = 3600):
         """Refresh cache periodically in background (default: 1 hour)"""
         while True:

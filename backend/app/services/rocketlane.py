@@ -1,6 +1,7 @@
-from typing import Any
 import asyncio
 import json
+from typing import Any
+
 import httpx
 
 from ..core.config import settings
@@ -28,7 +29,7 @@ class RocketlaneClient:
             raise ValueError("Rocketlane API key is required")
 
         self.logger.debug(f"RocketlaneClient initialized with base_url: {self.base_url}")
-    
+
     async def _handle_rate_limiting(self, response: httpx.Response, attempt: int = 0) -> bool:
         """Handle rate limiting with exponential backoff.
         
@@ -38,7 +39,7 @@ class RocketlaneClient:
             if attempt >= self.max_retries:
                 self.logger.error(f"Max retries ({self.max_retries}) exceeded for rate limiting")
                 return False
-                
+
             # Check for Retry-After header
             retry_after = response.headers.get("Retry-After")
             if retry_after:
@@ -46,11 +47,11 @@ class RocketlaneClient:
             else:
                 # Exponential backoff
                 wait_time = self.initial_retry_delay * (2 ** attempt)
-            
+
             self.logger.warning(f"Rate limited. Waiting {wait_time} seconds before retry (attempt {attempt + 1}/{self.max_retries})")
             await asyncio.sleep(wait_time)
             return True
-        
+
         return False
 
     async def get_projects(self, limit: int = 100) -> list[dict[str, Any]]:
@@ -138,10 +139,10 @@ class RocketlaneClient:
         # not a single "filters" parameter. Format: field.operation=value
         if project_id:
             params["project.eq"] = project_id
-        
+
         if user_id:
             params["assignees.cn"] = user_id
-        
+
         # Note: Status filtering seems to cause issues when combined with other filters
         # We'll handle status filtering in the response if needed
 
@@ -150,12 +151,12 @@ class RocketlaneClient:
 
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers, params=params)
-            
+
             log_response_details(self.logger, response.status_code, response.text[:500] if response.text else "")
-            
+
             response.raise_for_status()
             data = response.json()
-            
+
             # Extract tasks from response
             tasks = []
             if isinstance(data, list):
@@ -164,7 +165,7 @@ class RocketlaneClient:
                 tasks = data["data"]
             elif "tasks" in data:
                 tasks = data["tasks"]
-            
+
             # Apply status filtering on the response if needed
             if status and tasks:
                 status_map = {
@@ -176,7 +177,7 @@ class RocketlaneClient:
                     "done": 3,
                 }
                 status_value = status_map.get(status.lower(), status)
-                
+
                 # Filter tasks by status value
                 filtered_tasks = []
                 for task in tasks:
@@ -189,7 +190,7 @@ class RocketlaneClient:
                         elif task_status == status_value:
                             filtered_tasks.append(task)
                 return filtered_tasks
-            
+
             # Apply user filtering on the response if needed (when project_id is also specified)
             if user_id and project_id and tasks:
                 filtered_tasks = []
@@ -199,7 +200,7 @@ class RocketlaneClient:
                     if any(str(assignee.get("userId")) == str(user_id) for assignee in assignees if isinstance(assignee, dict)):
                         filtered_tasks.append(task)
                 return filtered_tasks
-            
+
             return tasks
 
     async def get_task(self, task_id: str) -> dict[str, Any]:
@@ -332,28 +333,28 @@ class RocketlaneClient:
         except Exception as e:
             self.logger.error(f"Unexpected error fetching users: {e}")
             raise
-    
+
     async def get_time_entry_categories(self) -> list[dict[str, Any]]:
         """Get all time entry categories."""
         try:
             async with httpx.AsyncClient() as client:
                 url = f"{self.base_url}/time-entries/categories"
                 log_request_details(self.logger, "GET", url, self.headers, {})
-                
+
                 attempt = 0
                 while attempt <= self.max_retries:
                     response = await client.get(url, headers=self.headers)
-                    
+
                     # Handle rate limiting
                     if await self._handle_rate_limiting(response, attempt):
                         attempt += 1
                         continue
-                    
+
                     log_response_details(self.logger, response.status_code, response.text[:500] if response.text else "")
                     response.raise_for_status()
-                    
+
                     data = response.json()
-                    
+
                     # Handle different response structures
                     if isinstance(data, list):
                         return data
@@ -362,17 +363,17 @@ class RocketlaneClient:
                     elif "categories" in data:
                         return data["categories"]
                     return []
-                
+
                 # If we get here, max retries exceeded
-                raise httpx.HTTPError(f"Max retries exceeded for time entry categories")
-                
+                raise httpx.HTTPError("Max retries exceeded for time entry categories")
+
         except httpx.HTTPError as e:
             self.logger.error(f"HTTP error fetching time entry categories: {e}")
             raise
         except Exception as e:
             self.logger.error(f"Unexpected error fetching time entry categories: {e}")
             raise
-    
+
     async def get_tasks_by_project(self, project_id: str) -> list[dict[str, Any]]:
         """Get all tasks for a specific project (for timesheets)."""
         try:
@@ -380,47 +381,47 @@ class RocketlaneClient:
                 "projectId.eq": project_id,
                 "pageSize": 500  # Get more tasks per page
             }
-            
+
             all_tasks = []
             page_token = None
-            
+
             async with httpx.AsyncClient() as client:
                 while True:
                     if page_token:
                         params["pageToken"] = page_token
-                    
+
                     url = f"{self.base_url}/tasks"
                     log_request_details(self.logger, "GET", url, self.headers, params)
-                    
+
                     attempt = 0
                     while attempt <= self.max_retries:
                         response = await client.get(url, headers=self.headers, params=params)
-                        
+
                         # Handle rate limiting
                         if await self._handle_rate_limiting(response, attempt):
                             attempt += 1
                             continue
-                        
+
                         break
-                    
+
                     log_response_details(self.logger, response.status_code, response.text[:500] if response.text else "")
                     response.raise_for_status()
-                    
+
                     data = response.json()
-                    
+
                     # Extract tasks from response
                     if isinstance(data, list):
                         all_tasks.extend(data)
                         break  # No pagination
                     elif "data" in data:
                         all_tasks.extend(data["data"])
-                        
+
                         # Check for pagination
                         pagination = data.get("pagination", {})
                         if not pagination.get("hasMore", False):
                             break
                         page_token = pagination.get("nextPageToken")
-                        
+
                         if not page_token:
                             break
                     elif "tasks" in data:
@@ -428,17 +429,17 @@ class RocketlaneClient:
                         break
                     else:
                         break
-            
+
             self.logger.info(f"Fetched {len(all_tasks)} tasks for project {project_id}")
             return all_tasks
-            
+
         except httpx.HTTPError as e:
             self.logger.error(f"HTTP error fetching tasks for project {project_id}: {e}")
             raise
         except Exception as e:
             self.logger.error(f"Unexpected error fetching tasks for project {project_id}: {e}")
             raise
-    
+
     async def create_time_entry_v2(
         self,
         date: str,
@@ -456,14 +457,14 @@ class RocketlaneClient:
         """
         if not settings.rocketlane_user_id:
             raise ValueError("User ID must be configured for creating time entries")
-        
+
         # Build payload according to API spec
         payload = {
             "date": date,
             "minutes": minutes,
             "billable": billable,
         }
-        
+
         # Rocketlane requires both project AND task for time entries
         if task_id and project_id:
             payload["task"] = {"taskId": task_id}
@@ -475,43 +476,137 @@ class RocketlaneClient:
                 payload["project"] = {"projectId": project_id}
         else:
             raise ValueError("Both task_id and project_id must be provided, or use activity_name for ad-hoc entries")
-        
+
         # Add optional fields
         if notes:
             payload["notes"] = notes
-        
+
         if category_id:
             payload["category"] = {"categoryId": category_id}
-        
+
         # Add user ID (required since our API key is global, not user-scoped)
         payload["user"] = {"userId": int(settings.rocketlane_user_id)}
-        
+
         try:
             async with httpx.AsyncClient() as client:
                 url = f"{self.base_url}/time-entries"
                 log_request_details(self.logger, "POST", url, self.headers, payload)
                 self.logger.info(f"Creating time entry with payload: {json.dumps(payload, indent=2)}")
-                
+
                 attempt = 0
                 while attempt <= self.max_retries:
                     response = await client.post(url, headers=self.headers, json=payload)
-                    
+
                     # Handle rate limiting
                     if await self._handle_rate_limiting(response, attempt):
                         attempt += 1
                         continue
-                    
+
                     break
-                
+
                 log_response_details(self.logger, response.status_code, response.text[:500] if response.text else "")
                 if response.status_code == 400:
                     self.logger.error(f"400 Bad Request. Response body: {response.text}")
                 response.raise_for_status()
                 return response.json()
-                
+
         except httpx.HTTPError as e:
             self.logger.error(f"HTTP error creating time entry: {e}")
             raise
         except Exception as e:
             self.logger.error(f"Unexpected error creating time entry: {e}")
+            raise
+
+    async def update_time_entry(
+        self,
+        entry_id: str,
+        date: str,
+        minutes: int,
+        task_id: str | None = None,
+        project_id: str | None = None,
+        activity_name: str | None = None,
+        notes: str | None = None,
+        billable: bool = True,
+        category_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Update an existing time entry."""
+        # Build the payload
+        payload = {
+            "date": date,
+            "minutes": minutes,
+            "billable": billable,
+        }
+
+        # Add task/project or activity name
+        if task_id and project_id:
+            payload["task"] = {"taskId": task_id}
+            payload["project"] = {"projectId": project_id}
+        elif activity_name:
+            payload["activityName"] = activity_name
+            if project_id:
+                payload["project"] = {"projectId": project_id}
+
+        # Add optional fields
+        if notes is not None:
+            payload["notes"] = notes
+
+        if category_id:
+            payload["category"] = {"categoryId": category_id}
+
+        # Add user ID
+        payload["user"] = {"userId": int(settings.rocketlane_user_id)}
+
+        try:
+            async with httpx.AsyncClient() as client:
+                url = f"{self.base_url}/time-entries/{entry_id}"
+                log_request_details(self.logger, "PUT", url, self.headers, payload)
+
+                attempt = 0
+                while attempt <= self.max_retries:
+                    response = await client.put(url, headers=self.headers, json=payload)
+
+                    # Handle rate limiting
+                    if await self._handle_rate_limiting(response, attempt):
+                        attempt += 1
+                        continue
+
+                    break
+
+                log_response_details(self.logger, response.status_code, response.text[:500] if response.text else "")
+                response.raise_for_status()
+                return response.json()
+
+        except httpx.HTTPError as e:
+            self.logger.error(f"HTTP error updating time entry: {e}")
+            raise
+        except Exception as e:
+            self.logger.error(f"Unexpected error updating time entry: {e}")
+            raise
+
+    async def delete_time_entry(self, entry_id: str) -> None:
+        """Delete a time entry."""
+        try:
+            async with httpx.AsyncClient() as client:
+                url = f"{self.base_url}/time-entries/{entry_id}"
+                log_request_details(self.logger, "DELETE", url, self.headers, {})
+
+                attempt = 0
+                while attempt <= self.max_retries:
+                    response = await client.delete(url, headers=self.headers)
+
+                    # Handle rate limiting
+                    if await self._handle_rate_limiting(response, attempt):
+                        attempt += 1
+                        continue
+
+                    break
+
+                log_response_details(self.logger, response.status_code, response.text[:500] if response.text else "")
+                response.raise_for_status()
+
+        except httpx.HTTPError as e:
+            self.logger.error(f"HTTP error deleting time entry: {e}")
+            raise
+        except Exception as e:
+            self.logger.error(f"Unexpected error deleting time entry: {e}")
             raise

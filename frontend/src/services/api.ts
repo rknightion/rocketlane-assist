@@ -239,8 +239,20 @@ export const timesheetsApi = {
     return response.data;
   },
   
-  deleteEntry: async (entryId: string): Promise<void> => {
-    await api.delete(`/timesheets/entries/${entryId}`);
+  deleteEntry: async (entryId: string, dateFrom?: string, dateTo?: string): Promise<void> => {
+    const params: any = {};
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    await api.delete(`/timesheets/entries/${entryId}`, { params });
+  },
+  
+  refreshEntries: async (dateFrom?: string, dateTo?: string, projectId?: string): Promise<void> => {
+    const params: any = {};
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    if (projectId) params.project_id = projectId;
+    
+    await api.post('/timesheets/entries/refresh', null, { params });
   },
   
   getSummary: async (dateFrom?: string, dateTo?: string): Promise<any> => {
@@ -249,6 +261,61 @@ export const timesheetsApi = {
     if (dateTo) params.date_to = dateTo;
     
     const response = await api.get('/timesheets/summary', { params });
+    return response.data;
+  },
+};
+
+// Google Calendar integration types
+export interface GoogleCalendarStatus {
+  is_configured: boolean;
+  is_authenticated: boolean;
+  user_email?: string;
+  event_count: number;
+  last_synced?: string;
+}
+
+export interface GoogleCalendarEvent {
+  id: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  start: string;
+  end: string;
+  created?: string;
+  updated?: string;
+  status: string;
+  attendees: any[];
+  organizer?: any;
+  recurrence?: string[];
+  recurring_event_id?: string;
+  is_all_day: boolean;
+  html_link?: string;
+}
+
+// Google Calendar API
+export const googleCalendarApi = {
+  getStatus: async (): Promise<GoogleCalendarStatus> => {
+    const response = await api.get('/integrations/google-calendar/status');
+    return response.data;
+  },
+  
+  getAuthUrl: async (): Promise<{ auth_url: string }> => {
+    const response = await api.get('/integrations/google-calendar/auth');
+    return response.data;
+  },
+  
+  sync: async (): Promise<{ success: boolean; event_count: number; last_synced: string }> => {
+    const response = await api.post('/integrations/google-calendar/sync');
+    return response.data;
+  },
+  
+  getEvents: async (): Promise<GoogleCalendarEvent[]> => {
+    const response = await api.get('/integrations/google-calendar/events');
+    return response.data;
+  },
+  
+  disconnect: async (): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/integrations/google-calendar/disconnect');
     return response.data;
   },
 };

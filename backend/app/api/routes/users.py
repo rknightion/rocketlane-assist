@@ -19,10 +19,10 @@ async def get_users(
     """Get all available users from cache or Rocketlane API with pagination support"""
     try:
         logger.info(f"Fetching users (force_refresh={force_refresh})")
-        
+
         # Get users from cache or API
         users = await user_cache.get_all_users(force_refresh=force_refresh)
-        
+
         # Transform and sort user data
         formatted_users = [
             {
@@ -40,7 +40,7 @@ async def get_users(
 
         # Sort users alphabetically by full name
         formatted_users.sort(key=lambda u: u["fullName"].lower())
-        
+
         logger.info(f"Successfully formatted {len(formatted_users)} users")
         return formatted_users
 
@@ -49,7 +49,7 @@ async def get_users(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error fetching users: {e}", exc_info=True)
-        
+
         # Try to serve from stale cache if available
         try:
             users = await user_cache.get_all_users(force_refresh=False)
@@ -69,12 +69,12 @@ async def get_users(
                     if user.get("userId") and (user.get("email") or user.get("emailId"))
                 ]
                 formatted_users.sort(key=lambda u: u["fullName"].lower())
-                
+
                 logger.warning(f"Serving {len(formatted_users)} users from cache due to API error")
                 return formatted_users
         except:
             pass
-        
+
         raise HTTPException(status_code=502, detail="Unable to fetch users. Please try again later.")
 
 
@@ -95,7 +95,7 @@ async def refresh_user_cache():
     try:
         logger.info("Force refreshing user cache")
         users = await user_cache.get_all_users(force_refresh=True)
-        
+
         return {
             "status": "success",
             "message": f"Cache refreshed with {len(users)} users",

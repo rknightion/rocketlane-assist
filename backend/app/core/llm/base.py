@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 
 class BaseLLMProvider(ABC):
@@ -37,6 +37,6 @@ class BaseLLMProvider(ABC):
         system_prompt: str | None = None,
         temperature: float = 0.7,
         max_tokens: int | None = None,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[str]:
         """Stream a completion from the LLM"""
         pass

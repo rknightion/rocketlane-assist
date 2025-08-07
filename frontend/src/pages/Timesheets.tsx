@@ -4,16 +4,21 @@ import './Timesheets.css';
 
 interface TimeEntry {
   id?: string;
+  timeEntryId?: string;
   date: string;
+  entryDate?: string;
   minutes: number;
+  durationInMinutes?: number;
   task_id?: string;
   project_id?: string;
   activity_name?: string;
+  activityName?: string;
   notes: string;
   billable: boolean;
   category_id?: string;
   task?: any;
   project?: any;
+  category?: any;
 }
 
 interface Project {
@@ -38,6 +43,7 @@ interface Category {
 
 const Timesheets = () => {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedWeek, setSelectedWeek] = useState(getWeekDates(new Date()));
   const [entries, setEntries] = useState<TimeEntry[]>([]);
@@ -46,6 +52,7 @@ const Timesheets = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [showAddEntry, setShowAddEntry] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>('');
+  const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [newEntry, setNewEntry] = useState<TimeEntry>({
     date: '',
     minutes: 0,
@@ -54,6 +61,9 @@ const Timesheets = () => {
   });
   const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
   const [summary, setSummary] = useState<any>(null);
+  const [includeWeekends, setIncludeWeekends] = useState(false);
+  const [draggedEntry, setDraggedEntry] = useState<TimeEntry | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -62,9 +72,12 @@ const Timesheets = () => {
   useEffect(() => {
     // Filter tasks when project is selected
     if (newEntry.project_id) {
-      const projectTasks = tasks.filter(task => 
-        task.project?.projectId === newEntry.project_id
-      );
+      const projectTasks = tasks.filter(task => {
+        // Compare as strings to handle both string and number IDs
+        const taskProjectId = String(task.project?.projectId || '');
+        const selectedProjectId = String(newEntry.project_id);
+        return taskProjectId === selectedProjectId;
+      });
       setFilteredTasks(projectTasks);
     } else {
       setFilteredTasks(tasks);
@@ -97,6 +110,18 @@ const Timesheets = () => {
     }
   }
 
+  async function refreshEntries() {
+    try {
+      setRefreshing(true);
+      await timesheetsApi.refreshEntries(selectedWeek.start, selectedWeek.end);
+      await loadData();
+    } catch (err) {
+      console.error('Failed to refresh entries:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   function getWeekDates(date: Date) {
     const startOfWeek = new Date(date);
     startOfWeek.setDate(date.getDate() - date.getDay());
@@ -117,11 +142,20 @@ const Timesheets = () => {
     for (let i = 0; i < 7; i++) {
       const day = new Date(start);
       day.setDate(start.getDate() + i);
+      const dayOfWeek = day.getDay();
+      
+      // Skip weekends if not included
+      if (!includeWeekends && (dayOfWeek === 0 || dayOfWeek === 6)) {
+        continue;
+      }
+      
       days.push({
         date: day.toISOString().split('T')[0],
         dayName: day.toLocaleDateString('en-US', { weekday: 'short' }),
         dayNumber: day.getDate(),
+        monthName: day.toLocaleDateString('en-US', { month: 'short' }),
         isToday: day.toDateString() === new Date().toDateString(),
+        isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
       });
     }
     
@@ -140,14 +174,14 @@ const Timesheets = () => {
 
   function getEntriesForDate(date: string) {
     return entries.filter(entry => 
-      (entry.date === date) || (entry as any).entryDate === date
+      (entry.date === date) || (entry.entryDate === date)
     );
   }
 
   function getTotalMinutesForDate(date: string) {
     const dateEntries = getEntriesForDate(date);
     return dateEntries.reduce((sum, entry) => 
-      sum + (entry.minutes || (entry as any).durationInMinutes || 0), 0
+      sum + (entry.minutes || entry.durationInMinutes || 0), 0
     );
   }
 
@@ -159,6 +193,7 @@ const Timesheets = () => {
     return `${hours}h ${mins}m`;
   }
 
+
   function openAddEntry(date: string) {
     setSelectedDate(date);
     setNewEntry({
@@ -167,15 +202,57 @@ const Timesheets = () => {
       notes: '',
       billable: true,
     });
+    setEditingEntry(null);
     setShowAddEntry(true);
   }
 
-  async function handleAddEntry() {
+  function openEditEntry(entry: TimeEntry) {
+    const entryId = entry.id || entry.timeEntryId;
+    const entryDate = entry.date || entry.entryDate || '';
+    const entryMinutes = entry.minutes || entry.durationInMinutes || 0;
+    const entryNotes = entry.notes || '';
+    const entryActivityName = entry.activity_name || entry.activityName || '';
+    
+    setSelectedDate(entryDate);
+    setNewEntry({
+      date: entryDate,
+      minutes: entryMinutes,
+      task_id: entry.task?.taskId ? String(entry.task.taskId) : undefined,
+      project_id: entry.project?.projectId ? String(entry.project.projectId) : undefined,
+      activity_name: entryActivityName,
+      notes: entryNotes,
+      billable: entry.billable !== undefined ? entry.billable : true,
+      category_id: entry.category?.categoryId ? String(entry.category.categoryId) : undefined,
+    });
+    setEditingEntry({ ...entry, id: entryId });
+    setShowAddEntry(true);
+  }
+
+  function duplicateEntry(entry: TimeEntry) {
+    const entryDate = entry.date || entry.entryDate || '';
+    const entryMinutes = entry.minutes || entry.durationInMinutes || 0;
+    const entryNotes = entry.notes || '';
+    const entryActivityName = entry.activity_name || entry.activityName || '';
+    
+    setSelectedDate(entryDate);
+    setNewEntry({
+      date: entryDate,
+      minutes: entryMinutes,
+      task_id: entry.task?.taskId ? String(entry.task.taskId) : undefined,
+      project_id: entry.project?.projectId ? String(entry.project.projectId) : undefined,
+      activity_name: entryActivityName,
+      notes: entryNotes,
+      billable: entry.billable !== undefined ? entry.billable : true,
+      category_id: entry.category?.categoryId ? String(entry.category.categoryId) : undefined,
+    });
+    setEditingEntry(null);
+    setShowAddEntry(true);
+  }
+
+  async function handleSaveEntry() {
     try {
       // Convert hours and minutes to total minutes
-      const hours = Math.floor(newEntry.minutes / 60);
-      const minutes = newEntry.minutes % 60;
-      const totalMinutes = (hours * 60) + minutes;
+      const totalMinutes = newEntry.minutes;
       
       if (totalMinutes <= 0) {
         alert('Please enter a valid duration');
@@ -193,18 +270,151 @@ const Timesheets = () => {
         return;
       }
       
-      await timesheetsApi.createEntry({
+      const entryData = {
         ...newEntry,
         minutes: totalMinutes,
-      });
+      };
+      
+      if (editingEntry) {
+        // Update existing entry
+        const entryId = editingEntry.id || editingEntry.timeEntryId;
+        await timesheetsApi.updateEntry(entryId!, entryData);
+      } else {
+        // Create new entry
+        await timesheetsApi.createEntry(entryData);
+      }
       
       // Reload data
       await loadData();
       setShowAddEntry(false);
     } catch (err) {
-      console.error('Failed to create time entry:', err);
-      alert('Failed to create time entry. Please try again.');
+      console.error('Failed to save time entry:', err);
+      alert('Failed to save time entry. Please try again.');
     }
+  }
+
+  async function handleDeleteEntry(entry: TimeEntry) {
+    if (!confirm('Are you sure you want to delete this time entry?')) {
+      return;
+    }
+    
+    try {
+      const entryId = entry.id || entry.timeEntryId;
+      await timesheetsApi.deleteEntry(entryId!, selectedWeek.start, selectedWeek.end);
+      await loadData();
+    } catch (err) {
+      console.error('Failed to delete time entry:', err);
+      alert('Failed to delete time entry. Please try again.');
+    }
+  }
+
+  function handleDragStart(e: React.DragEvent, entry: TimeEntry) {
+    setDraggedEntry(entry);
+    e.dataTransfer.effectAllowed = 'copyMove';
+  }
+
+  function handleDragOver(e: React.DragEvent, date: string) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverDate(date);
+  }
+
+  function handleDragLeave() {
+    setDragOverDate(null);
+  }
+
+  async function handleDrop(e: React.DragEvent, targetDate: string) {
+    e.preventDefault();
+    setDragOverDate(null);
+    
+    if (!draggedEntry) return;
+    
+    const sourceDate = draggedEntry.date || draggedEntry.entryDate;
+    if (sourceDate === targetDate) {
+      setDraggedEntry(null);
+      return;
+    }
+    
+    // Show dialog to ask user for copy or move
+    const action = await showCopyMoveDialog();
+    
+    if (action === 'copy') {
+      // Copy entry to new date
+      const entryData = {
+        date: targetDate,
+        minutes: draggedEntry.minutes || draggedEntry.durationInMinutes || 0,
+        task_id: draggedEntry.task?.taskId,
+        project_id: draggedEntry.project?.projectId,
+        activity_name: draggedEntry.activity_name || draggedEntry.activityName,
+        notes: draggedEntry.notes,
+        billable: draggedEntry.billable,
+        category_id: draggedEntry.category?.categoryId,
+      };
+      
+      try {
+        await timesheetsApi.createEntry(entryData);
+        await loadData();
+      } catch (err) {
+        console.error('Failed to copy entry:', err);
+        alert('Failed to copy entry. Please try again.');
+      }
+    } else if (action === 'move') {
+      // Move entry to new date
+      const entryId = draggedEntry.id || draggedEntry.timeEntryId;
+      const entryData = {
+        date: targetDate,
+        minutes: draggedEntry.minutes || draggedEntry.durationInMinutes || 0,
+        task_id: draggedEntry.task?.taskId,
+        project_id: draggedEntry.project?.projectId,
+        activity_name: draggedEntry.activity_name || draggedEntry.activityName,
+        notes: draggedEntry.notes,
+        billable: draggedEntry.billable,
+        category_id: draggedEntry.category?.categoryId,
+      };
+      
+      try {
+        await timesheetsApi.updateEntry(entryId!, entryData);
+        await loadData();
+      } catch (err) {
+        console.error('Failed to move entry:', err);
+        alert('Failed to move entry. Please try again.');
+      }
+    }
+    
+    setDraggedEntry(null);
+  }
+
+  function showCopyMoveDialog(): Promise<'copy' | 'move' | null> {
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="modal-content copy-move-dialog">
+          <h3>Move or Copy Entry?</h3>
+          <p>Would you like to move this entry to the new date or create a copy?</p>
+          <div class="modal-actions">
+            <button class="cancel-button" id="cancel-action">Cancel</button>
+            <button class="copy-button" id="copy-action">Copy Entry</button>
+            <button class="save-button" id="move-action">Move Entry</button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      const handleAction = (action: 'copy' | 'move' | null) => {
+        document.body.removeChild(modal);
+        resolve(action);
+      };
+      
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) handleAction(null);
+      });
+      
+      document.getElementById('cancel-action')?.addEventListener('click', () => handleAction(null));
+      document.getElementById('copy-action')?.addEventListener('click', () => handleAction('copy'));
+      document.getElementById('move-action')?.addEventListener('click', () => handleAction('move'));
+    });
   }
 
   if (loading && !entries.length) {
@@ -221,7 +431,7 @@ const Timesheets = () => {
         <div className="error">
           <h2>Error Loading Timesheets</h2>
           <p>{error}</p>
-          <button onClick={loadData}>Retry</button>
+          <button onClick={() => loadData()}>Retry</button>
         </div>
       </div>
     );
@@ -251,6 +461,22 @@ const Timesheets = () => {
           <button onClick={() => navigateWeek('next')} className="nav-button">
             Next Week →
           </button>
+          <button 
+            onClick={refreshEntries} 
+            className={`refresh-button ${refreshing ? 'refreshing' : ''}`}
+            disabled={refreshing}
+            title="Refresh entries from server"
+          >
+            {refreshing ? '↻' : '⟳'} Refresh
+          </button>
+          <label className="weekend-toggle">
+            <input
+              type="checkbox"
+              checked={includeWeekends}
+              onChange={(e) => setIncludeWeekends(e.target.checked)}
+            />
+            <span>Include weekends</span>
+          </label>
         </div>
       </div>
 
@@ -271,64 +497,129 @@ const Timesheets = () => {
         </div>
       )}
 
-      <div className="timesheet-grid">
-        {weekDays.map(day => {
-          const dayEntries = getEntriesForDate(day.date);
-          const totalMinutes = getTotalMinutesForDate(day.date);
-          
-          return (
-            <div key={day.date} className={`day-column ${day.isToday ? 'today' : ''}`}>
-              <div className="day-header">
-                <div className="day-name">{day.dayName}</div>
-                <div className="day-number">{day.dayNumber}</div>
-                {totalMinutes > 0 && (
-                  <div className="day-total">{formatDuration(totalMinutes)}</div>
-                )}
-              </div>
-              
-              <div className="day-entries">
-                {dayEntries.map((entry, index) => (
-                  <div key={entry.id || index} className="time-entry">
-                    <div className="entry-project">
-                      {entry.task?.project?.projectName || 
-                       entry.project?.projectName || 
-                       (entry as any).project?.projectName ||
-                       'Ad-hoc Activity'}
-                    </div>
-                    <div className="entry-task">
-                      {entry.task?.taskName || 
-                       (entry as any).task?.taskName ||
-                       entry.activity_name || 
-                       (entry as any).activityName ||
-                       'General Work'}
-                    </div>
-                    {(entry.notes || (entry as any).notes) && (
-                      <div className="entry-notes">
-                        {entry.notes || (entry as any).notes}
-                      </div>
-                    )}
-                    <div className="entry-duration">
-                      {formatDuration(entry.minutes || (entry as any).durationInMinutes || 0)}
+      <div className="timesheet-container">
+        <div className={`timesheet-grid ${includeWeekends ? 'weekends-included' : 'weekdays-only'}`}>
+          {weekDays.map(day => {
+            const dayEntries = getEntriesForDate(day.date);
+            const totalMinutes = getTotalMinutesForDate(day.date);
+            
+            return (
+              <div 
+                key={day.date} 
+                className={`day-column ${day.isToday ? 'today' : ''} ${day.isWeekend ? 'weekend' : ''} ${dragOverDate === day.date ? 'drag-over' : ''}`}
+                onDragOver={(e) => handleDragOver(e, day.date)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, day.date)}
+                onClick={(e) => {
+                  // Only open add entry if clicking on empty space, not on an entry
+                  if ((e.target as HTMLElement).classList.contains('day-entries') || 
+                      (e.target as HTMLElement).classList.contains('day-column')) {
+                    openAddEntry(day.date);
+                  }
+                }}
+              >
+                <div className="day-header">
+                  <div className="day-info">
+                    <div className="day-name">{day.dayName}</div>
+                    <div className="day-date">
+                      <span className="day-number">{day.dayNumber}</span>
+                      <span className="day-month">{day.monthName}</span>
                     </div>
                   </div>
-                ))}
+                  {totalMinutes > 0 && (
+                    <div className="day-total">{formatDuration(totalMinutes)}</div>
+                  )}
+                </div>
+                
+                <div className="day-entries">
+                  {dayEntries.map((entry, index) => {
+                    const entryMinutes = entry.minutes || entry.durationInMinutes || 0;
+                    const entryId = entry.id || entry.timeEntryId || `entry-${index}`;
+                    
+                    return (
+                      <div 
+                        key={entryId} 
+                        className="time-entry-card"
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, entry)}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="entry-header">
+                          <div className="entry-duration">
+                            {formatDuration(entryMinutes)}
+                          </div>
+                          <div className="entry-actions">
+                            <button 
+                              onClick={() => openEditEntry(entry)}
+                              className="entry-action-btn edit"
+                              title="Edit entry"
+                            >
+                              ✎
+                            </button>
+                            <button 
+                              onClick={() => duplicateEntry(entry)}
+                              className="entry-action-btn duplicate"
+                              title="Duplicate entry"
+                            >
+                              ⎘
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteEntry(entry)}
+                              className="entry-action-btn delete"
+                              title="Delete entry"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </div>
+                        <div className="entry-project">
+                          {entry.task?.project?.projectName || 
+                           entry.project?.projectName || 
+                           'Ad-hoc Activity'}
+                        </div>
+                        <div className="entry-task">
+                          {entry.task?.taskName || 
+                           entry.activity_name ||
+                           entry.activityName ||
+                           'General Work'}
+                        </div>
+                        {(entry.notes) && (
+                          <div className="entry-notes">
+                            {entry.notes}
+                          </div>
+                        )}
+                        <div className="entry-footer">
+                          {entry.billable && <span className="entry-badge billable">Billable</span>}
+                          {entry.category && (
+                            <span className="entry-badge category">
+                              {entry.category.categoryName || entry.category.name}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                <button 
+                  className="add-entry-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openAddEntry(day.date);
+                  }}
+                >
+                  + Add Entry
+                </button>
               </div>
-              
-              <button 
-                className="add-entry-button"
-                onClick={() => openAddEntry(day.date)}
-              >
-                + Add Entry
-              </button>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {showAddEntry && (
         <div className="modal-overlay" onClick={() => setShowAddEntry(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2>Add Time Entry</h2>
+            <h2>{editingEntry ? 'Edit Time Entry' : 'Add Time Entry'}</h2>
             <div className="entry-date">{new Date(selectedDate).toLocaleDateString('en-US', { 
               weekday: 'long', 
               year: 'numeric', 
@@ -344,7 +635,7 @@ const Timesheets = () => {
               >
                 <option value="">Select a project...</option>
                 {projects.map(project => (
-                  <option key={project.projectId} value={project.projectId}>
+                  <option key={project.projectId} value={String(project.projectId)}>
                     {project.projectName}
                   </option>
                 ))}
@@ -359,9 +650,13 @@ const Timesheets = () => {
                   onChange={e => setNewEntry({ ...newEntry, task_id: e.target.value })}
                   required
                 >
-                  <option value="">Select a task...</option>
+                  <option value="">
+                    {filteredTasks.length === 0 
+                      ? "No tasks available for this project" 
+                      : "Select a task..."}
+                  </option>
                   {filteredTasks.map(task => (
-                    <option key={task.taskId} value={task.taskId}>
+                    <option key={task.taskId} value={String(task.taskId)}>
                       {task.taskName}
                     </option>
                   ))}
@@ -455,8 +750,8 @@ const Timesheets = () => {
               <button onClick={() => setShowAddEntry(false)} className="cancel-button">
                 Cancel
               </button>
-              <button onClick={handleAddEntry} className="save-button">
-                Add Entry
+              <button onClick={handleSaveEntry} className="save-button">
+                {editingEntry ? 'Update Entry' : 'Add Entry'}
               </button>
             </div>
           </div>

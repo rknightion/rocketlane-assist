@@ -1,4 +1,5 @@
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 from ..core.config import settings
 from ..core.llm import get_llm_provider
@@ -58,7 +59,7 @@ class SummarizationService:
         """Get project metadata for streaming response"""
         project = await self.rocketlane_client.get_project(project_id)
         project_name = project.get("projectName", project.get("name", "Unknown Project"))
-        
+
         # Get outstanding tasks for the configured user
         user_id = settings.rocketlane_user_id if settings.rocketlane_user_id else None
         tasks = await self.rocketlane_client.get_project_tasks(
@@ -66,14 +67,14 @@ class SummarizationService:
             status="not_done",
             user_id=user_id,
         )
-        
+
         return {
             "project_id": project_id,
             "project_name": project_name,
             "task_count": len(tasks),
         }
 
-    async def summarize_project_tasks_stream(self, project_id: str) -> AsyncGenerator[str, None]:
+    async def summarize_project_tasks_stream(self, project_id: str) -> AsyncGenerator[str]:
         """Stream summarization of outstanding tasks for a project"""
         # Get project details
         project = await self.rocketlane_client.get_project(project_id)
