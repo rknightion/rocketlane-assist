@@ -43,7 +43,6 @@ interface Category {
 
 const Timesheets = () => {
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedWeek, setSelectedWeek] = useState(getWeekDates(new Date()));
   const [entries, setEntries] = useState<TimeEntry[]>([]);
@@ -112,13 +111,16 @@ const Timesheets = () => {
 
   async function refreshEntries() {
     try {
-      setRefreshing(true);
       await timesheetsApi.refreshEntries(selectedWeek.start, selectedWeek.end);
       await loadData();
     } catch (err) {
       console.error('Failed to refresh entries:', err);
-    } finally {
-      setRefreshing(false);
+      // Still try to load data even if refresh fails
+      try {
+        await loadData();
+      } catch (loadErr) {
+        console.error('Failed to load data after refresh error:', loadErr);
+      }
     }
   }
 
@@ -183,6 +185,26 @@ const Timesheets = () => {
     return dateEntries.reduce((sum, entry) => 
       sum + (entry.minutes || entry.durationInMinutes || 0), 0
     );
+  }
+
+  function getBillableMinutesForDate(date: string) {
+    const dateEntries = getEntriesForDate(date);
+    return dateEntries.reduce((sum, entry) => {
+      if (entry.billable !== false) {
+        return sum + (entry.minutes || entry.durationInMinutes || 0);
+      }
+      return sum;
+    }, 0);
+  }
+
+  function getNonBillableMinutesForDate(date: string) {
+    const dateEntries = getEntriesForDate(date);
+    return dateEntries.reduce((sum, entry) => {
+      if (entry.billable === false) {
+        return sum + (entry.minutes || entry.durationInMinutes || 0);
+      }
+      return sum;
+    }, 0);
   }
 
   function formatDuration(minutes: number) {
@@ -278,11 +300,14 @@ const Timesheets = () => {
       if (editingEntry) {
         // Update existing entry
         const entryId = editingEntry.id || editingEntry.timeEntryId;
-        await timesheetsApi.updateEntry(entryId!, entryData);
+        await timesheetsApi.updateEntry(entryId!, entryData, selectedWeek.start, selectedWeek.end);
       } else {
         // Create new entry
-        await timesheetsApi.createEntry(entryData);
+        await timesheetsApi.createEntry(entryData, selectedWeek.start, selectedWeek.end);
       }
+      
+      // Add small delay to ensure Rocketlane API has processed the changes
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Reload data
       await loadData();
@@ -305,6 +330,40 @@ const Timesheets = () => {
     } catch (err) {
       console.error('Failed to delete time entry:', err);
       alert('Failed to delete time entry. Please try again.');
+    }
+  }
+
+  async function handleDeleteAllEntries(date: string) {
+    const dayEntries = getEntriesForDate(date);
+    
+    if (dayEntries.length === 0) {
+      return;
+    }
+    
+    const dayName = new Date(date).toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    
+    if (!confirm(`Are you sure you want to delete all ${dayEntries.length} time entries for ${dayName}?\n\nThis action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      // Delete all entries for this day
+      const deletePromises = dayEntries.map(entry => {
+        const entryId = entry.id || entry.timeEntryId;
+        return timesheetsApi.deleteEntry(entryId!, selectedWeek.start, selectedWeek.end);
+      });
+      
+      await Promise.all(deletePromises);
+      
+      // Refresh the data after deleting
+      await loadData();
+    } catch (err) {
+      console.error('Failed to delete entries:', err);
+      alert('Failed to delete some entries. Please try again.');
     }
   }
 
@@ -339,42 +398,119 @@ const Timesheets = () => {
     const action = await showCopyMoveDialog();
     
     if (action === 'copy') {
-      // Copy entry to new date
-      const entryData = {
+      // Copy entry to new date - use same format as manual entry creation
+      const entryData: TimeEntry = {
         date: targetDate,
         minutes: draggedEntry.minutes || draggedEntry.durationInMinutes || 0,
-        task_id: draggedEntry.task?.taskId,
-        project_id: draggedEntry.project?.projectId,
+        task_id: draggedEntry.task?.taskId ? String(draggedEntry.task.taskId) : undefined,
+        project_id: draggedEntry.project?.projectId ? String(draggedEntry.project.projectId) : undefined,
         activity_name: draggedEntry.activity_name || draggedEntry.activityName,
-        notes: draggedEntry.notes,
-        billable: draggedEntry.billable,
-        category_id: draggedEntry.category?.categoryId,
+        notes: draggedEntry.notes || '',
+        billable: draggedEntry.billable !== false,
+        category_id: draggedEntry.category?.categoryId ? String(draggedEntry.category.categoryId) : undefined,
       };
       
       try {
-        await timesheetsApi.createEntry(entryData);
-        await loadData();
+        // Remember current entry count for validation
+        const initialEntryCount = entries.length;
+        
+        // Pass date range for proper cache invalidation (like delete does)
+        await timesheetsApi.createEntry(entryData, selectedWeek.start, selectedWeek.end);
+        
+        // Retry loading data until we see the new entry (max 10 attempts)
+        let retries = 10;
+        let success = false;
+        
+        while (retries > 0 && !success) {
+          // Wait before fetching (fixed 500ms delay)
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Force refresh the cache on the backend
+          try {
+            await timesheetsApi.refreshEntries(selectedWeek.start, selectedWeek.end);
+          } catch (err) {
+            console.log('Cache refresh failed, continuing...');
+          }
+          
+          // Reload data
+          await loadData();
+          
+          // Check if the entry count increased (successful copy)
+          if (entries.length > initialEntryCount) {
+            success = true;
+            console.log('Copy successful - new entry detected');
+          } else {
+            console.log(`Retry ${11 - retries}/10 - waiting for Rocketlane to process entry...`);
+            retries--;
+          }
+        }
+        
+        if (!success) {
+          // Final attempt - one more refresh
+          await timesheetsApi.refreshEntries(selectedWeek.start, selectedWeek.end);
+          await loadData();
+        }
       } catch (err) {
         console.error('Failed to copy entry:', err);
         alert('Failed to copy entry. Please try again.');
       }
     } else if (action === 'move') {
-      // Move entry to new date
+      // Move entry to new date - use same format as manual entry update
       const entryId = draggedEntry.id || draggedEntry.timeEntryId;
-      const entryData = {
+      
+      const entryData: TimeEntry = {
         date: targetDate,
         minutes: draggedEntry.minutes || draggedEntry.durationInMinutes || 0,
-        task_id: draggedEntry.task?.taskId,
-        project_id: draggedEntry.project?.projectId,
+        task_id: draggedEntry.task?.taskId ? String(draggedEntry.task.taskId) : undefined,
+        project_id: draggedEntry.project?.projectId ? String(draggedEntry.project.projectId) : undefined,
         activity_name: draggedEntry.activity_name || draggedEntry.activityName,
-        notes: draggedEntry.notes,
-        billable: draggedEntry.billable,
-        category_id: draggedEntry.category?.categoryId,
+        notes: draggedEntry.notes || '',
+        billable: draggedEntry.billable !== false,
+        category_id: draggedEntry.category?.categoryId ? String(draggedEntry.category.categoryId) : undefined,
       };
       
       try {
-        await timesheetsApi.updateEntry(entryId!, entryData);
-        await loadData();
+        // Pass date range for proper cache invalidation (like delete does)
+        await timesheetsApi.updateEntry(entryId!, entryData, selectedWeek.start, selectedWeek.end);
+        
+        // Retry loading data until we see the moved entry (max 10 attempts)
+        let retries = 10;
+        let success = false;
+        
+        while (retries > 0 && !success) {
+          // Wait before fetching (fixed 500ms delay)
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Force refresh the cache on the backend
+          try {
+            await timesheetsApi.refreshEntries(selectedWeek.start, selectedWeek.end);
+          } catch (err) {
+            console.log('Cache refresh failed, continuing...');
+          }
+          
+          // Reload data
+          await loadData();
+          
+          // Check if the entry has moved to the target date
+          const targetDateEntries = getEntriesForDate(targetDate);
+          const movedEntry = targetDateEntries.find(e => 
+            (e.id === entryId || e.timeEntryId === entryId)
+          );
+          
+          if (movedEntry) {
+            success = true;
+            console.log('Move successful - entry found at target date');
+          } else {
+            console.log(`Retry ${11 - retries}/10 - waiting for Rocketlane to process move...`);
+            retries--;
+          }
+        }
+        
+        if (!success) {
+          // Final attempt - one more refresh
+          await timesheetsApi.refreshEntries(selectedWeek.start, selectedWeek.end);
+          await loadData();
+        }
       } catch (err) {
         console.error('Failed to move entry:', err);
         alert('Failed to move entry. Please try again.');
@@ -463,11 +599,10 @@ const Timesheets = () => {
           </button>
           <button 
             onClick={refreshEntries} 
-            className={`refresh-button ${refreshing ? 'refreshing' : ''}`}
-            disabled={refreshing}
+            className="refresh-button"
             title="Refresh entries from server"
           >
-            {refreshing ? '↻' : '⟳'} Refresh
+            ⟳ Refresh
           </button>
           <label className="weekend-toggle">
             <input
@@ -502,6 +637,8 @@ const Timesheets = () => {
           {weekDays.map(day => {
             const dayEntries = getEntriesForDate(day.date);
             const totalMinutes = getTotalMinutesForDate(day.date);
+            const billableMinutes = getBillableMinutesForDate(day.date);
+            const nonBillableMinutes = getNonBillableMinutesForDate(day.date);
             
             return (
               <div 
@@ -527,7 +664,21 @@ const Timesheets = () => {
                     </div>
                   </div>
                   {totalMinutes > 0 && (
-                    <div className="day-total">{formatDuration(totalMinutes)}</div>
+                    <div className="day-totals">
+                      <div className="day-total-badge total" title="Total hours">
+                        {formatDuration(totalMinutes)}
+                      </div>
+                      {billableMinutes > 0 && (
+                        <div className="day-total-badge billable" title="Billable hours">
+                          {formatDuration(billableMinutes)}
+                        </div>
+                      )}
+                      {nonBillableMinutes > 0 && (
+                        <div className="day-total-badge non-billable" title="Non-billable hours">
+                          {formatDuration(nonBillableMinutes)}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
                 
@@ -610,6 +761,19 @@ const Timesheets = () => {
                 >
                   + Add Entry
                 </button>
+                
+                {dayEntries.length > 0 && (
+                  <button 
+                    className="delete-all-button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteAllEntries(day.date);
+                    }}
+                    title={`Delete all entries for ${day.dayName}`}
+                  >
+                    Delete All Entries
+                  </button>
+                )}
               </div>
             );
           })}

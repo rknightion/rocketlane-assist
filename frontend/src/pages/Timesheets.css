@@ -69,7 +69,7 @@
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s;
+  transition: background 0.2s;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -77,15 +77,6 @@
 
 .refresh-button:hover {
   background: #7c3aed;
-}
-
-.refresh-button.refreshing {
-  animation: spin 1s linear infinite;
-  opacity: 0.7;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .weekend-toggle {
@@ -191,15 +182,14 @@
 
 .day-header {
   padding: 15px;
-  border-bottom: 2px solid #e5e7eb;
   background: white;
   position: sticky;
   top: 0;
   z-index: 10;
-  height: 85px;
+  height: 100px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 8px;
 }
 
 .day-column.today .day-header {
@@ -210,6 +200,8 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e5e7eb;
 }
 
 .day-name {
@@ -236,14 +228,38 @@
   text-transform: uppercase;
 }
 
-.day-total {
-  font-size: 14px;
+.day-totals {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.day-total-badge {
+  font-size: 13px;
   font-weight: 600;
-  color: #10b981;
   padding: 2px 8px;
-  background: #d1fae5;
   border-radius: 12px;
-  align-self: flex-start;
+  cursor: help;
+  transition: transform 0.2s;
+}
+
+.day-total-badge:hover {
+  transform: scale(1.05);
+}
+
+.day-total-badge.total {
+  color: #10b981;
+  background: #d1fae5;
+}
+
+.day-total-badge.billable {
+  color: #d97706;
+  background: #fef3c7;
+}
+
+.day-total-badge.non-billable {
+  color: #7c3aed;
+  background: #ede9fe;
 }
 
 .day-entries {

@@ -453,7 +453,7 @@ class RocketlaneClient:
     ) -> dict[str, Any]:
         """Create a time entry following Rocketlane API v1.0 specification.
         
-        Requires `date`, `minutes`, and both `project` and `task` for proper time tracking.
+        Requires `date`, `minutes`, and a source (task, project, or activityName).
         """
         if not settings.rocketlane_user_id:
             raise ValueError("User ID must be configured for creating time entries")
@@ -465,17 +465,16 @@ class RocketlaneClient:
             "billable": billable,
         }
 
-        # Rocketlane requires both project AND task for time entries
-        if task_id and project_id:
+        # Add the source of the time entry - Rocketlane requires ONE of these
+        # Prefer task over project over activity name
+        if task_id:
             payload["task"] = {"taskId": task_id}
+        elif project_id:
             payload["project"] = {"projectId": project_id}
         elif activity_name:
-            # For ad-hoc activities without specific task
             payload["activityName"] = activity_name
-            if project_id:
-                payload["project"] = {"projectId": project_id}
         else:
-            raise ValueError("Both task_id and project_id must be provided, or use activity_name for ad-hoc entries")
+            raise ValueError("One of task_id, project_id, or activity_name must be provided")
 
         # Add optional fields
         if notes:
@@ -530,21 +529,21 @@ class RocketlaneClient:
         category_id: str | None = None,
     ) -> dict[str, Any]:
         """Update an existing time entry."""
-        # Build the payload
+        # Build the payload - date and minutes are mandatory for updates
         payload = {
             "date": date,
             "minutes": minutes,
             "billable": billable,
         }
 
-        # Add task/project or activity name
-        if task_id and project_id:
+        # Add the source - same as create, ONE of these is required
+        # Prefer task over project over activity name
+        if task_id:
             payload["task"] = {"taskId": task_id}
+        elif project_id:
             payload["project"] = {"projectId": project_id}
         elif activity_name:
             payload["activityName"] = activity_name
-            if project_id:
-                payload["project"] = {"projectId": project_id}
 
         # Add optional fields
         if notes is not None:

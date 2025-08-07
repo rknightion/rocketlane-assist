@@ -9,6 +9,13 @@ from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
+# Disable OpenTelemetry debug logging
+logging.getLogger("opentelemetry").setLevel(logging.WARNING)
+logging.getLogger("opentelemetry.sdk").setLevel(logging.WARNING)
+logging.getLogger("opentelemetry.instrumentation").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 

@@ -157,8 +157,16 @@ async def get_time_entries(
 
 
 @router.post("/entries", response_model=dict[str, Any])
-async def create_time_entry(entry: TimeEntryCreate) -> dict[str, Any]:
+async def create_time_entry(
+    entry: TimeEntryCreate,
+    date_from: str | None = Query(None, description="Start date for cache invalidation"),
+    date_to: str | None = Query(None, description="End date for cache invalidation"),
+) -> dict[str, Any]:
     """Create a new time entry for the configured user."""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Creating time entry with data: {entry.model_dump()}")
+    
     if not settings.rocketlane_api_key or not settings.rocketlane_user_id:
         raise HTTPException(
             status_code=403,
@@ -167,6 +175,7 @@ async def create_time_entry(entry: TimeEntryCreate) -> dict[str, Any]:
 
     # Validate that at least one source is provided
     if not entry.task_id and not entry.project_id and not entry.activity_name:
+        logger.error(f"Validation failed - no task_id, project_id, or activity_name provided. Entry data: {entry.model_dump()}")
         raise HTTPException(
             status_code=400,
             detail="One of task_id, project_id, or activity_name must be provided",
@@ -199,15 +208,24 @@ async def create_time_entry(entry: TimeEntryCreate) -> dict[str, Any]:
             category_id=entry.category_id,
         )
 
-        # Invalidate cache for the week containing this entry
-        entry_date = datetime.strptime(entry.date, "%Y-%m-%d")
-        start_of_week = entry_date - timedelta(days=entry_date.weekday())
-        end_of_week = start_of_week + timedelta(days=6)
-        await time_entries_cache.invalidate_period(
-            date_from=start_of_week.strftime("%Y-%m-%d"),
-            date_to=end_of_week.strftime("%Y-%m-%d"),
-            project_id=entry.project_id
-        )
+        # Invalidate cache - use provided dates or calculate week
+        if date_from and date_to:
+            # Use the provided date range (consistent with delete endpoint)
+            await time_entries_cache.invalidate_period(
+                date_from=date_from,
+                date_to=date_to,
+                project_id=entry.project_id
+            )
+        else:
+            # Fall back to calculating the week containing this entry
+            entry_date = datetime.strptime(entry.date, "%Y-%m-%d")
+            start_of_week = entry_date - timedelta(days=entry_date.weekday())
+            end_of_week = start_of_week + timedelta(days=6)
+            await time_entries_cache.invalidate_period(
+                date_from=start_of_week.strftime("%Y-%m-%d"),
+                date_to=end_of_week.strftime("%Y-%m-%d"),
+                project_id=entry.project_id
+            )
 
         return result
     except Exception as e:
@@ -218,6 +236,8 @@ async def create_time_entry(entry: TimeEntryCreate) -> dict[str, Any]:
 async def update_time_entry(
     entry_id: str,
     entry: TimeEntryCreate,
+    date_from: str | None = Query(None, description="Start date for cache invalidation"),
+    date_to: str | None = Query(None, description="End date for cache invalidation"),
 ) -> dict[str, Any]:
     """Update an existing time entry."""
     if not settings.rocketlane_api_key or not settings.rocketlane_user_id:
@@ -253,15 +273,24 @@ async def update_time_entry(
             category_id=entry.category_id,
         )
 
-        # Invalidate cache for the week containing this entry
-        entry_date = datetime.strptime(entry.date, "%Y-%m-%d")
-        start_of_week = entry_date - timedelta(days=entry_date.weekday())
-        end_of_week = start_of_week + timedelta(days=6)
-        await time_entries_cache.invalidate_period(
-            date_from=start_of_week.strftime("%Y-%m-%d"),
-            date_to=end_of_week.strftime("%Y-%m-%d"),
-            project_id=entry.project_id
-        )
+        # Invalidate cache - use provided dates or calculate week
+        if date_from and date_to:
+            # Use the provided date range (consistent with delete endpoint)
+            await time_entries_cache.invalidate_period(
+                date_from=date_from,
+                date_to=date_to,
+                project_id=entry.project_id
+            )
+        else:
+            # Fall back to calculating the week containing this entry
+            entry_date = datetime.strptime(entry.date, "%Y-%m-%d")
+            start_of_week = entry_date - timedelta(days=entry_date.weekday())
+            end_of_week = start_of_week + timedelta(days=6)
+            await time_entries_cache.invalidate_period(
+                date_from=start_of_week.strftime("%Y-%m-%d"),
+                date_to=end_of_week.strftime("%Y-%m-%d"),
+                project_id=entry.project_id
+            )
 
         return result
     except Exception as e:

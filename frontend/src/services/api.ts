@@ -229,13 +229,19 @@ export const timesheetsApi = {
     notes?: string;
     billable?: boolean;
     category_id?: string;
-  }): Promise<any> => {
-    const response = await api.post('/timesheets/entries', entry);
+  }, dateFrom?: string, dateTo?: string): Promise<any> => {
+    const params: any = {};
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    const response = await api.post('/timesheets/entries', entry, { params });
     return response.data;
   },
   
-  updateEntry: async (entryId: string, entry: any): Promise<any> => {
-    const response = await api.put(`/timesheets/entries/${entryId}`, entry);
+  updateEntry: async (entryId: string, entry: any, dateFrom?: string, dateTo?: string): Promise<any> => {
+    const params: any = {};
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    const response = await api.put(`/timesheets/entries/${entryId}`, entry, { params });
     return response.data;
   },
   
