@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { timesheetsApi } from '../services/api';
+import AudioRecorder from '../components/AudioRecorder';
+import TimeEntryReview from '../components/TimeEntryReview';
 import './Timesheets.css';
 
 interface TimeEntry {
@@ -63,6 +65,12 @@ const Timesheets = () => {
   const [includeWeekends, setIncludeWeekends] = useState(false);
   const [draggedEntry, setDraggedEntry] = useState<TimeEntry | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [showAudioRecorder, setShowAudioRecorder] = useState(false);
+  const [recordingDate, setRecordingDate] = useState<string>('');
+  const [showReview, setShowReview] = useState(false);
+  const [processedEntries, setProcessedEntries] = useState<any[]>([]);
+  const [currentTranscription, setCurrentTranscription] = useState<string>('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -520,6 +528,80 @@ const Timesheets = () => {
     setDraggedEntry(null);
   }
 
+  function openAudioRecorder(date: string) {
+    setRecordingDate(date);
+    setShowAudioRecorder(true);
+  }
+
+  async function handleAudioRecordingComplete(audioBlob: Blob) {
+    setShowAudioRecorder(false);
+    setIsProcessing(true);
+    
+    try {
+      // Step 1: Transcribe the audio
+      const transcription = await timesheetsApi.transcribeAudio(audioBlob);
+      setCurrentTranscription(transcription);
+      
+      // Step 2: Process the transcription to get structured entries
+      const result = await timesheetsApi.processTranscription(transcription, recordingDate);
+      
+      setProcessedEntries(result.entries);
+      setShowReview(true);
+    } catch (err) {
+      console.error('Failed to process recording:', err);
+      alert('Failed to process your recording. Please try again or check that OpenAI is configured.');
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
+  async function handleConfirmProcessedEntries(entries: any[]) {
+    setShowReview(false);
+    
+    // Submit each entry individually (Rocketlane API doesn't support batch)
+    let successCount = 0;
+    const failedEntries = [];
+    
+    for (const entry of entries) {
+      try {
+        const entryData = {
+          date: entry.date,
+          minutes: entry.minutes,
+          task_id: entry.task_id,
+          project_id: entry.project_id,
+          activity_name: entry.activity_name,
+          notes: entry.notes,
+          billable: entry.billable,
+          category_id: entry.category_id,
+        };
+        
+        await timesheetsApi.createEntry(entryData, selectedWeek.start, selectedWeek.end);
+        successCount++;
+      } catch (err) {
+        console.error('Failed to create entry:', err);
+        failedEntries.push(entry);
+      }
+    }
+    
+    // Show results
+    if (successCount > 0 && failedEntries.length === 0) {
+      // All succeeded
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await loadData();
+    } else if (successCount > 0 && failedEntries.length > 0) {
+      // Partial success
+      alert(`Created ${successCount} entries successfully. ${failedEntries.length} entries failed.`);
+      await loadData();
+    } else {
+      // All failed
+      alert('Failed to create time entries. Please try again.');
+    }
+    
+    // Clear state
+    setProcessedEntries([]);
+    setCurrentTranscription('');
+  }
+
   function showCopyMoveDialog(): Promise<'copy' | 'move' | null> {
     return new Promise((resolve) => {
       const modal = document.createElement('div');
@@ -774,6 +856,17 @@ const Timesheets = () => {
                     Delete All Entries
                   </button>
                 )}
+                
+                <button 
+                  className="record-day-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openAudioRecorder(day.date);
+                  }}
+                  title={`Record time entries for ${day.dayName}`}
+                >
+                  🎤 Record the Day
+                </button>
               </div>
             );
           })}
@@ -920,6 +1013,37 @@ const Timesheets = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {showAudioRecorder && (
+        <AudioRecorder
+          onRecordingComplete={handleAudioRecordingComplete}
+          onCancel={() => setShowAudioRecorder(false)}
+        />
+      )}
+
+      {isProcessing && (
+        <div className="modal-overlay">
+          <div className="processing-modal">
+            <div className="processing-spinner"></div>
+            <h3>Processing Your Recording</h3>
+            <p>Transcribing audio and extracting time entries...</p>
+          </div>
+        </div>
+      )}
+
+      {showReview && (
+        <TimeEntryReview
+          entries={processedEntries}
+          totalMinutes={processedEntries.reduce((sum, e) => sum + e.minutes, 0)}
+          transcription={currentTranscription}
+          onConfirm={handleConfirmProcessedEntries}
+          onCancel={() => {
+            setShowReview(false);
+            setProcessedEntries([]);
+            setCurrentTranscription('');
+          }}
+        />
       )}
     </div>
   );

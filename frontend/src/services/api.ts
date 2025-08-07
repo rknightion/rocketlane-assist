@@ -269,6 +269,50 @@ export const timesheetsApi = {
     const response = await api.get('/timesheets/summary', { params });
     return response.data;
   },
+  
+  transcribeAudio: async (audioBlob: Blob): Promise<string> => {
+    // Convert blob to base64
+    const reader = new FileReader();
+    const base64 = await new Promise<string>((resolve) => {
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        resolve(base64.split(',')[1]); // Remove data:audio/webm;base64, prefix
+      };
+      reader.readAsDataURL(audioBlob);
+    });
+    
+    const response = await api.post('/timesheets/transcribe', {
+      audio_data: base64,
+      language: 'en',
+    });
+    return response.data.transcription;
+  },
+  
+  processTranscription: async (transcription: string, date: string): Promise<{
+    entries: Array<{
+      date: string;
+      minutes: number;
+      task_id?: string;
+      project_id?: string;
+      activity_name?: string;
+      notes: string;
+      billable: boolean;
+      category_id?: string;
+      confidence: number;
+      project_name?: string;
+      task_name?: string;
+      category_name?: string;
+      warnings: string[];
+    }>;
+    total_minutes: number;
+    raw_response?: string;
+  }> => {
+    const response = await api.post('/timesheets/process-transcription', {
+      transcription,
+      date,
+    });
+    return response.data;
+  },
 };
 
 // Google Calendar integration types

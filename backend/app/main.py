@@ -17,6 +17,7 @@ from .services.time_entries_cache import time_entries_cache
 from .services.time_entry_categories_cache import time_entry_categories_cache
 from .services.user_cache import UserCacheService
 from .services.user_statistics_cache import user_statistics_cache
+from .services.google_calendar import google_calendar_service
 
 # Configure OpenTelemetry BEFORE creating the app
 configure_otel()
@@ -123,6 +124,29 @@ async def lifespan(app: FastAPI):
             ])
         else:
             background_tasks.extend([project_refresh_task, user_refresh_task])
+    
+    # Start Google Calendar sync task if authenticated
+    async def google_calendar_refresh_task():
+        """Periodically sync Google Calendar events if authenticated."""
+        while True:
+            try:
+                status = google_calendar_service.get_status()
+                if status.is_authenticated:
+                    logger.info("Running periodic Google Calendar sync...")
+                    success = await google_calendar_service.sync_events()
+                    if success:
+                        logger.info(f"Google Calendar sync completed. Events: {len(google_calendar_service.get_cached_events())}")
+                    else:
+                        logger.warning("Google Calendar sync failed")
+                await asyncio.sleep(900)  # 15 minutes
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in Google Calendar refresh task: {e}")
+                await asyncio.sleep(900)  # Continue after error
+    
+    gcal_task = asyncio.create_task(google_calendar_refresh_task())
+    background_tasks.append(gcal_task)
 
     yield
 

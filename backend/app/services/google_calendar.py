@@ -201,7 +201,7 @@ class GoogleCalendarService:
             return None
 
     async def sync_events(self) -> bool:
-        """Sync calendar events from the last 2 weeks."""
+        """Sync calendar events from the last 10 days."""
         credentials = self._get_credentials()
         if not credentials:
             return False
@@ -210,14 +210,14 @@ class GoogleCalendarService:
             # Build calendar service
             service = build("calendar", "v3", credentials=credentials)
 
-            # Calculate time range (last 2 weeks)
+            # Calculate time range (last 10 days)
             now = datetime.now(UTC)
-            two_weeks_ago = now - timedelta(weeks=2)
+            ten_days_ago = now - timedelta(days=10)
 
             # Fetch events
             events_result = service.events().list(
                 calendarId=self.cache.calendar_id,
-                timeMin=two_weeks_ago.isoformat(),
+                timeMin=ten_days_ago.isoformat(),
                 timeMax=now.isoformat(),
                 singleEvents=True,
                 orderBy="startTime"

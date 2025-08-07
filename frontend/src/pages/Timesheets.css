@@ -435,6 +435,26 @@
   background: #f0f9ff;
 }
 
+.delete-all-button {
+  margin: 0 10px 10px 10px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid #ef4444;
+  border-radius: 6px;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+  align-self: stretch;
+}
+
+.delete-all-button:hover {
+  background: #ef4444;
+  color: white;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+}
+
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -654,4 +674,66 @@
   .day-column {
     min-width: 200px;
   }
+}
+
+/* Audio Recording Button */
+.record-day-button {
+  margin: 0 10px 10px 10px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
+  align-self: stretch;
+}
+
+.record-day-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+/* Processing Modal */
+.processing-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 40px;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.processing-modal h3 {
+  margin: 20px 0 10px 0;
+  font-size: 22px;
+  color: #333;
+}
+
+.processing-modal p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.processing-spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid #f3f4f6;
+  border-top: 4px solid #3b82f6;
+  border-radius: 50%;
+  margin: 0 auto;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }

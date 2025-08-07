@@ -73,3 +73,20 @@ class OpenAIProvider(BaseLLMProvider):
         async for chunk in stream:
             if chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
+
+    async def transcribe_audio(self, audio_data: bytes, language: str | None = None) -> str:
+        """Transcribe audio using OpenAI's Whisper API
+        
+        Args:
+            audio_data: Audio file bytes (webm, mp3, mp4, mpeg, mpga, m4a, wav, or ogg)
+            language: Optional language code (e.g., 'en' for English)
+        
+        Returns:
+            Transcribed text
+        """
+        response = await self.client.audio.transcriptions.create(
+            model="whisper-1",
+            file=("audio.webm", audio_data),
+            language=language,
+        )
+        return response.text

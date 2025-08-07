@@ -40,3 +40,18 @@ class BaseLLMProvider(ABC):
     ) -> AsyncGenerator[str]:
         """Stream a completion from the LLM"""
         pass
+
+    async def transcribe_audio(self, audio_data: bytes, language: str | None = None) -> str:
+        """Transcribe audio using provider's speech-to-text API
+        
+        Args:
+            audio_data: Audio file bytes
+            language: Optional language code
+        
+        Returns:
+            Transcribed text
+            
+        Raises:
+            NotImplementedError: If provider doesn't support speech-to-text
+        """
+        raise NotImplementedError(f"{self.__class__.__name__} does not support speech-to-text")
